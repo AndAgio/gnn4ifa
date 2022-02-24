@@ -23,8 +23,8 @@ class IfaDataset(InMemoryDataset):
                  train_sim_ids=[1, 2, 3],
                  val_sim_ids=[4],
                  test_sim_ids=[5],
-                 simulation_time=1500,
-                 time_att_start=10,
+                 simulation_time=300,
+                 time_att_start=50,
                  split='train'):
         self.download_folder = download_folder
         assert scenario in ['existing', 'non_existing', 'normal']
@@ -37,7 +37,7 @@ class IfaDataset(InMemoryDataset):
             assert 1 <= val_sim_id <= 5
         for test_sim_id in test_sim_ids:
             assert 1 <= test_sim_id <= 5
-        assert set(train_sim_ids+val_sim_ids+test_sim_ids) == {1, 2, 3, 4, 5}
+        assert set(train_sim_ids + val_sim_ids + test_sim_ids) == {1, 2, 3, 4, 5}
         self.train_sim_ids = train_sim_ids
         self.val_sim_ids = val_sim_ids
         self.test_sim_ids = test_sim_ids
@@ -61,7 +61,8 @@ class IfaDataset(InMemoryDataset):
     def download_dir(self) -> str:
         return os.path.join(self.download_folder,
                             'IFA_4_{}'.format(self.scenario) if self.scenario != 'normal' else self.scenario,
-                            '{}_topology'.format(self.topology) if self.topology != 'dfn' else '{}_topology'.format(self.topology.upper()))
+                            '{}_topology'.format(self.topology) if self.topology != 'dfn' else '{}_topology'.format(
+                                self.topology.upper()))
 
     @property
     def raw_dir(self) -> str:
@@ -90,7 +91,8 @@ class IfaDataset(InMemoryDataset):
         # Define files that should be available as raw in the dataset
         names = ['drop-trace', 'pit-size', 'rate-trace']
         if frequencies:
-            file_names = ['{}/{}-{}.txt'.format(freq, name, index) for freq in frequencies for name in names for index in range(1,6)]
+            file_names = ['{}/{}-{}.txt'.format(freq, name, index) for freq in frequencies for name in names for index
+                          in range(1, 6)]
             print('file_names are: {}'.format(file_names))
         else:
             file_names = ['{}-{}.txt'.format(name, index) for name in names for index in range(1, 6)]
@@ -134,7 +136,8 @@ class IfaDataset(InMemoryDataset):
     def convert_dataset_to_tg_graphs(self):
         # Import stored dictionary of data
         file_names = glob.glob(os.path.join(self.download_dir, '*', '*.txt'))
-        Extractor(scenario=self.scenario,
+        Extractor(data_dir=self.download_folder,
+                  scenario=self.scenario,
                   topology=self.topology,
                   train_sim_ids=self.train_sim_ids,
                   val_sim_ids=self.val_sim_ids,
