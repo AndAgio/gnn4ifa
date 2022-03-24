@@ -7,7 +7,7 @@
 
 import argparse
 # Import my modules
-from gnn4ifa.bin import Trainer
+from gnn4ifa.bin import Tester
 
 
 def gather_settings():
@@ -18,9 +18,13 @@ def gather_settings():
                         default='/Users/andrea.agiollo/Documents/PhD/Projects/GNN-x-IFA/ifa_data_tg',
                         help='folder where tg dataset will be stored')
     parser.add_argument('--train_scenario', default='existing',
-                        help='simulations train_scenario to consider')
+                        help='simulations train_scenario for trained model to consider')
     parser.add_argument('--train_topology', default='small',
-                        help='simulations train_topology to be used')
+                        help='simulations train_topology for trained model to be used')
+    parser.add_argument('--test_scenario', default='existing',
+                        help='simulations train_scenario to consider for testing')
+    parser.add_argument('--test_topology', default='small',
+                        help='simulations train_topology to be used for testing')
     parser.add_argument('--frequencies', nargs="+", type=int, default=None,  # default=[8,12,32,64]
                         help='Frequencies of attacks in the simulations to be used as training')
     parser.add_argument('--train_sims', nargs="+", type=int, default=[1, 2, 3],
@@ -39,18 +43,6 @@ def gather_settings():
                         help='set to 1 if training using node masking technique, else set to 0')
     parser.add_argument('--percentile', default=0.99, type=float,
                         help='percentile to be used during anomaly detection')
-    parser.add_argument('--optimizer', default='sgd',
-                        help='optimizer to be used during training')
-    parser.add_argument('--momentum', default=0.9, type=float,
-                        help='momentum of the optimizer (used only in combination with SGD)')
-    parser.add_argument('--weight_decay', default=5e-4, type=float,
-                        help='weight decay parameter to be used in training')
-    parser.add_argument('--batch_size', default=32, type=int,
-                        help='number of graphs to be used in each batch')
-    parser.add_argument('--epochs', default=100, type=int,
-                        help='number of epochs to be used in training')
-    parser.add_argument('--lr', default=1e-1, type=float,
-                        help='learning rate to be used in training')
     parser.add_argument('--out_folder', default='outputs',
                         help='folder where outputs are stored (best trained models, etc.)')
     parser.add_argument('--device', default='cpu',
@@ -61,27 +53,23 @@ def gather_settings():
 
 def main(args):
     print(args)
-    trainer = Trainer(dataset_folder=args.dataset_folder,
-                      download_dataset_folder=args.download_folder,
-                      train_scenario=args.train_scenario,
-                      train_topology=args.train_topology,
-                      frequencies=args.frequencies,
-                      train_sim_ids=args.train_sims,
-                      val_sim_ids=args.val_sims,
-                      test_sim_ids=args.test_sims,
-                      simulation_time=args.sim_time,
-                      time_att_start=args.time_att_start,
-                      chosen_model=args.model,
-                      masking=True if args.masking == 1 else False,
-                      percentile=args.percentile,
-                      optimizer=args.optimizer,
-                      momentum=args.momentum,
-                      weight_decay=args.weight_decay,
-                      batch_size=args.batch_size,
-                      epochs=args.epochs,
-                      lr=args.lr,
-                      out_path=args.out_folder)
-    trainer.run()
+    tester = Tester(dataset_folder=args.dataset_folder,
+                    download_dataset_folder=args.download_folder,
+                    train_scenario=args.train_scenario,
+                    train_topology=args.train_topology,
+                    test_scenario=args.test_scenario,
+                    test_topology=args.test_topology,
+                    frequencies=args.frequencies,
+                    train_sim_ids=args.train_sims,
+                    val_sim_ids=args.val_sims,
+                    test_sim_ids=args.test_sims,
+                    simulation_time=args.sim_time,
+                    time_att_start=args.time_att_start,
+                    chosen_model=args.model,
+                    masking=True if args.masking == 1 else False,
+                    percentile=args.percentile,
+                    out_path=args.out_folder)
+    tester.run()
 
 
 if __name__ == '__main__':

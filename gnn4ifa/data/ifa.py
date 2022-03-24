@@ -44,7 +44,6 @@ class IfaDataset(InMemoryDataset):
         self.simulation_time = simulation_time
         self.time_att_start = time_att_start
         self.root = root
-        print('self.root: {}'.format(self.root))
         super(IfaDataset, self).__init__(self.root, transform, pre_transform)
         if split == 'train':
             path = self.processed_paths[0]
@@ -79,24 +78,22 @@ class IfaDataset(InMemoryDataset):
         elif self.scenario == 'existing' and self.topology == 'small':
             frequencies = ['4x', '8x', '16x', '32x', '64x']
         elif self.scenario == 'non_existing' and self.topology == 'dfn':
-            raise FileNotFoundError('Scenario {} and topology {} are incompatible at the moment'.format(self.scenario,
+            raise FileNotFoundError('Scenario {} and train_topology {} are incompatible at the moment'.format(self.scenario,
                                                                                                         self.topology))
         elif self.scenario == 'non_existing' and self.topology == 'small':
             frequencies = ['16x', '32x', '64x', '128x', '256x']
         elif self.scenario == 'normal':
             frequencies = None
         else:
-            raise ValueError('Something wrong with scenario {} and topology {}'.format(self.scenario,
+            raise ValueError('Something wrong with train_scenario {} and train_topology {}'.format(self.scenario,
                                                                                        self.topology))
         # Define files that should be available as raw in the dataset
         names = ['drop-trace', 'pit-size', 'rate-trace']
         if frequencies:
             file_names = ['{}/{}-{}.txt'.format(freq, name, index) for freq in frequencies for name in names for index
                           in range(1, 6)]
-            print('file_names are: {}'.format(file_names))
         else:
             file_names = ['{}-{}.txt'.format(name, index) for name in names for index in range(1, 6)]
-            print('file_names are: {}'.format(file_names))
         return file_names
 
     @property
@@ -135,7 +132,11 @@ class IfaDataset(InMemoryDataset):
 
     def convert_dataset_to_tg_graphs(self):
         # Import stored dictionary of data
-        file_names = glob.glob(os.path.join(self.download_dir, '*', '*.txt'))
+        if self.scenario != 'normal':
+            file_names = glob.glob(os.path.join(self.download_dir, '*', '*.txt'))
+        else:
+            file_names = glob.glob(os.path.join(self.download_dir, '*.txt'))
+        print('file_names: {}'.format(file_names))
         Extractor(data_dir=self.download_folder,
                   scenario=self.scenario,
                   topology=self.topology,
@@ -157,9 +158,6 @@ class IfaDataset(InMemoryDataset):
             existing_file_names = glob.glob(os.path.join(self.download_dir, '*', '*.txt'))
             # If the two sets don't match it means that the dataset was not downloaded yet
             required_file_names = [os.path.join(self.download_dir, name) for name in self.download_file_names]
-            print('required_file_names: {}'.format(required_file_names))
-            print('existing_file_names: {}'.format(existing_file_names))
-            print('self.download_dir: {}'.format(self.download_dir))
             if set(required_file_names) != set(existing_file_names):
                 print('Didn\'t find the dataset. Downloading it...')
                 self.download()
@@ -184,32 +182,38 @@ class IfaDataset(InMemoryDataset):
         data, slices = self.collate(data_list)
         torch.save((data, slices), name)
 
-    def get_scenario_data(self, scenario='Legitimate'):
-        # Return only graphs belonging to a specific scenario
-        scenario_label = get_scenario_labels_dict()[scenario]
-        data = [data for data in self if data['scenario'] == scenario_label]
-        print('Number of filtered graphs over {} scenario: {}'.format(scenario, len(data)))
+    def get_freq_data(self, frequencies=[8, 16, 32, 64]):
+        # Return all graphs of simulations having specified attack frequency
+        # Filter graphs by train_scenario and get only those graphs that have attack_is_on==True
+        data = [data for data in self if data['frequency'] in frequencies]
+        print('Number of filtered graphs over {} frequencies: {}'.format(frequencies,
+                                                                         len(data)))
         return data
 
-    def get_all_attack_data(self, attack='Blackhole'):
+    def get_all_attack_data(self, frequencies=None):
         # Return all graphs where a specific attack is active
-        # Filter graphs by scenario and get only those graphs that have attack_is_on==True
-        whole_scenario_data = self.get_scenario_data(scenario=attack)
-        data = [data for data in whole_scenario_data if data['attack_is_on'] == 1]
-        print('Number of filtered graphs over active {} attack: {}'.format(attack, len(data)))
-        # print('Data example: {} -> scenario: {} -> attack_is_on: {}'.format(data[0], data[0].scenario, data[0].attack_is_on))
-        # print('Data example: {} -> scenario: {} -> attack_is_on: {}'.format(data[len(data)-1], data[len(data)-1].scenario, data[len(data)-1].attack_is_on))
-        # print('Data example: {} -> scenario: {} -> attack_is_on: {}'.format(data[int(len(data)/2)], data[int(len(data)/2)].scenario, data[int(len(data)/2)].attack_is_on))
+        # Filter graphs by train_scenario and get only those graphs that have attack_is_on==True
+        datas = self.get_all_data(frequencies=frequencies)
+        print('Number of non-filtered graphs: {}'.format(len(datas)))
+        data = [data for data in datas if data['attack_is_on'] == 1]
+        print('Number of filtered graphs over active attack: {}'.format(len(data)))
         return data
 
-    def get_all_legitimate_data(self):
+    def get_all_legitimate_data(self, frequencies=None):
         # Return all graphs where no attack is active
         # Gather all graphs over all scenarios and get only those graphs that have attack_is_on==False
-        data = [data for data in self]
-        print('Number of non-filtered graphs: {}'.format(len(data)))
-        data = [data for data in self if data['attack_is_on'] == 0]
+        datas = self.get_all_data(frequencies=frequencies)
+        print('Number of non-filtered graphs: {}'.format(len(datas)))
+        data = [data for data in datas if data['attack_is_on'] == 0]
         print('Number of filtered graphs: {}'.format(len(data)))
-        # print('Data example: {} -> scenario: {} -> attack_is_on: {}'.format(data[0], data[0].scenario, data[0].attack_is_on))
-        # print('Data example: {} -> scenario: {} -> attack_is_on: {}'.format(data[len(data)-1], data[len(data)-1].scenario, data[len(data)-1].attack_is_on))
-        # print('Data example: {} -> scenario: {} -> attack_is_on: {}'.format(data[int(len(data)/2)], data[int(len(data)/2)].scenario, data[int(len(data)/2)].attack_is_on))
+        return data
+
+    def get_all_data(self, frequencies=None):
+        # Return all graphs
+        # Gather all graphs over all scenarios
+        # If frequencies are specified then filter data by frequencies
+        if frequencies:
+            data = self.get_freq_data(frequencies=frequencies)
+        else:
+            data = [data for data in self]
         return data

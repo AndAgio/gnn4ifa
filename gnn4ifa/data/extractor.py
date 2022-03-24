@@ -87,6 +87,7 @@ class Extractor():
         routers_names = data['rate']['Node'].unique()
         # Consider routers only
         routers_names = [i for i in routers_names if 'Rout' in i]
+        # print('routers_names: {}'.format(routers_names))
         return routers_names
 
     @staticmethod
@@ -108,14 +109,15 @@ class Extractor():
         return filtered_data
 
     def get_graph_structure(self, debug=False):
-        # Open file containing topology structure
+        # Open file containing train_topology structure
         topology_file = os.path.join(self.data_dir, 'topologies', '{}_topology.txt'.format(self.topology))
         router_links = []
         for line in open(topology_file, 'r'):
             source = line.split(',')[0]
-            dest = line.split(',')[1]
+            dest = line.split(',')[1].split('\n')[0]
             if source[:4] == 'Rout' and dest[:4] == 'Rout':
-                router_links.append([source[4], dest[4]])
+                router_links.append([source[4:], dest[4:]])
+        # print('router_links: {}'.format(router_links))
         list_of_nodes = list(set([elem for link in router_links for elem in link]))
         # Use nx to obtain the graph corresponding to the graph
         graph = nx.DiGraph()
@@ -146,7 +148,7 @@ class Extractor():
         pit_data = data['pit']
         drop_data = data['drop']
         # Get pit size of router at hand
-        router_index = node_name[-1]
+        router_index = node_name.split('Rout')[-1]
         pit_size = pit_data[pit_data['Node'] == 'PIT_{}'.format(router_index)]['Size'].item()
         features[0 if mode == 'array' else 'pit_size'] = pit_size
         # Get drop rate of router at hand
@@ -154,6 +156,9 @@ class Extractor():
             drop_rate = drop_data[drop_data['Node'] == node_name]['PacketsRaw'].item()
         except ValueError:
             drop_rate = 0
+        # if math.isnan(drop_rate):
+        #     print('drop rate: {}'.format(drop_rate))
+        #     raise ValueError('NaN found in drop rate!')
         features[1 if mode == 'array' else 'drop_rate'] = drop_rate
         # Get InInterests of router at hand
         in_interests = rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'InInterests')]['PacketRaw']
@@ -210,6 +215,21 @@ class Extractor():
         out_timedout_interests = sum(i for i in out_timedout_interests_list)
         features[11 if mode == 'array' else 'out_timedout_interests'] = out_timedout_interests
         # Return feature for node node_name
+        # print('features: {}'.format(features))
+        if mode == 'array':
+            # print('np.count_nonzero(features): {}'.format(np.count_nonzero(features)))
+            if np.isnan(features).any():
+                raise ValueError('Something very wrong! All features are zeros!')
+        elif mode == 'dict':
+            nan_count = 0
+            for key, value in enumerate(features):
+                if math.isnan(value):
+                    nan_count += 1
+            if nan_count != 0:
+                raise ValueError('Something very wrong! All features are zeros!')
+        else:
+            raise ValueError('Invalid mode for extracting node features!')
+
         return features
 
     def get_all_nodes_features(self, nodes_names, data):
@@ -217,15 +237,14 @@ class Extractor():
         nodes_features = {}
         # Iterate over each node and get their features
         for node_index, node_name in enumerate(nodes_names):
-            # print('node_name: {}'.format(node_name))
             features = self.get_node_features(data=data,
                                               node_name=node_name)
-            nodes_features[node_name[-1]] = features
+            nodes_features[node_name.split('Rout')[-1]] = features
         # print('nodes_features shape: {}'.format(nodes_features.shape))
         # Return nodes_features
         return nodes_features
 
-    def insert_labels(self, graph, time):
+    def insert_labels(self, graph, time, frequency):
         if self.scenario != 'normal':
             # CHeck if time of the current window is before or after the attack start time
             attack_is_on = True if time > self.time_att_start else False
@@ -234,11 +253,19 @@ class Extractor():
         # If attack is on set graph label to 1 else to 0
         graph.graph['attack_is_on'] = attack_is_on
         # Append graph label corresponding to the simulation considered
-        graph.graph['scenario'] = get_scenario_labels_dict()[self.scenario]
+        graph.graph['train_scenario'] = get_scenario_labels_dict()[self.scenario]
+        # Set also time for debugging purposes
+        graph.graph['time'] = time
+        # Set also attack frequency for debugging purposes
+        if self.scenario != 'normal':
+            graph.graph['frequency'] = int(frequency)
+        else:
+            pass
         # Return graph with labels
         return graph
 
     def extract_graphs_from_simulation_files(self, simulation_files, simulation_index, total_simulations, split):
+        # print('simulation_files: {}'.format(simulation_files))
         # Extract data from the considered simulation
         data = self.get_data(simulation_files)
         # Get names of nodes inside a simulation
@@ -247,30 +274,59 @@ class Extractor():
         start_time = 1
         # Define empty list containing all graphs found in a simulation
         tg_graphs = []
+        # Check if simulation has run up until the end or not. To avoid NaN issues inside features
+        rate_trace_file = [file for file in simulation_files if 'rate-trace' in file][0]
+        last_line_of_rate_trace_file = pd.read_csv(rate_trace_file, sep='\t', index_col=False).iloc[-1]
+        simulation_time_from_rate_trace_file = last_line_of_rate_trace_file['Time']
+        # Set simulation time depending on the last line of the trace file
+        if simulation_time_from_rate_trace_file < self.simulation_time - 1:
+            simulation_time = simulation_time_from_rate_trace_file - 1
+        else:
+            simulation_time = self.simulation_time - 1
         # For each index get the corresponding network traffic window and extract the features in that window
-        for time in range(start_time, self.simulation_time + 1):
-            # Print info
-            frequency = simulation_files[0].split("/")[-2].split('x')[0]
-            print(
-                "\r| Extracting {} split... |"
-                " Scenario: {} | Topology: {} |"
-                " Frequency: {} |"
-                " Simulation progress: {}/{} |"
-                " Time steps progress: {}/{} |".format(split,
-                                                       self.scenario,
-                                                       self.topology,
-                                                       frequency,
-                                                       simulation_index,
-                                                       total_simulations,
-                                                       time,
-                                                       self.simulation_time),
-                end="\r")
+        for time in range(start_time, simulation_time + 1):
+            if self.scenario != 'normal':
+                # Print info
+                frequency = simulation_files[0].split("/")[-2].split('x')[0]
+                print(
+                    "\r| Extracting {} split... |"
+                    " Scenario: {} | Topology: {} |"
+                    " Frequency: {} |"
+                    " Simulation progress: {}/{} |"
+                    " Time steps progress: {}/{} |".format(split,
+                                                           self.scenario,
+                                                           self.topology,
+                                                           frequency,
+                                                           simulation_index,
+                                                           total_simulations,
+                                                           time,
+                                                           simulation_time),
+                    end="\r")
+            else:
+                frequency = None
+                print(
+                    "\r| Extracting {} split... |"
+                    " Scenario: {} | Topology: {} |"
+                    " Simulation progress: {}/{} |"
+                    " Time steps progress: {}/{} |".format(split,
+                                                           self.scenario,
+                                                           self.topology,
+                                                           simulation_index,
+                                                           total_simulations,
+                                                           time,
+                                                           simulation_time),
+                    end="\r")
+            if self.scenario == 'existing' and self.topology == 'dfn' and frequency == '32' \
+                    and split == 'train' and simulation_index == 1 and time >= 299:
+                continue
             # Get graph of the network during the current time window
             graph = self.get_graph_structure()
             filtered_data = self.filter_data_by_time(data, time)
             nodes_features = self.get_all_nodes_features(nodes_names=routers_names,
                                                          data=filtered_data)
             # Add nodes features to graph
+            # print('graph.nodes: {}'.format(graph.nodes))
+            # print('nodes_features: {}'.format(nodes_features))
             for node_name in graph.nodes:
                 # print('node_name: {}'.format(node_name))
                 # print('graph.nodes[node_name]: {}'.format(graph.nodes[node_name]))
@@ -280,7 +336,8 @@ class Extractor():
             # print('graph.nodes.data(): {}'.format(graph.nodes.data()))
             # Add labels to the graph as graph and nodes attributes
             graph = self.insert_labels(graph,
-                                       time=time)
+                                       time=time,
+                                       frequency=frequency)
             # Debugging purposes
             # print('graph.graph: {}'.format(graph.graph))
             # print('graph.nodes.data(): {}'.format(graph.nodes.data()))
@@ -292,9 +349,12 @@ class Extractor():
                 torch.tensor(graph_label_value, dtype=torch.int)
                 tg_graph[graph_label_name] = torch.tensor(graph_label_value, dtype=torch.int)
             # print('tg_graph: {}'.format(tg_graph))
+            # print('tg_graph.x: {}'.format(tg_graph.x))
+            # print('tg_graph.edge_index: {}'.format(tg_graph.edge_index))
             # Append the graph for the current time window to the list of graphs
             tg_graphs.append(tg_graph)
         # Return the list of pytorch geometric graphs
+        # print('tg_graphs: {}'.format(tg_graphs))
         return tg_graphs
 
     @staticmethod
