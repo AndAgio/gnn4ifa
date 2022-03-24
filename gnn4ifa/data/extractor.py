@@ -23,7 +23,8 @@ class Extractor():
                  val_sim_ids=[4],
                  test_sim_ids=[5],
                  simulation_time=300,
-                 time_att_start=50):
+                 time_att_start=50,
+                 differential=False):
         self.data_dir = data_dir
 
         self.scenario = scenario
@@ -35,6 +36,8 @@ class Extractor():
 
         self.simulation_time = simulation_time
         self.time_att_start = time_att_start
+
+        self.differential = differential
 
     @staticmethod
     def get_data(files):
@@ -245,6 +248,7 @@ class Extractor():
         return nodes_features
 
     def insert_labels(self, graph, time, frequency):
+        # print('Inserting labels...')
         if self.scenario != 'normal':
             # CHeck if time of the current window is before or after the attack start time
             attack_is_on = True if time > self.time_att_start else False
@@ -321,9 +325,22 @@ class Extractor():
                 continue
             # Get graph of the network during the current time window
             graph = self.get_graph_structure()
-            filtered_data = self.filter_data_by_time(data, time)
-            nodes_features = self.get_all_nodes_features(nodes_names=routers_names,
-                                                         data=filtered_data)
+            if self.differential:
+                # If differential is required compute difference between current time window and previous time window
+                if time == start_time:
+                    continue
+                filtered_data = self.filter_data_by_time(data, time - 1)
+                nodes_features_pre = self.get_all_nodes_features(nodes_names=routers_names,
+                                                                 data=filtered_data)
+                filtered_data = self.filter_data_by_time(data, time)
+                nodes_features_post = self.get_all_nodes_features(nodes_names=routers_names,
+                                                                  data=filtered_data)
+                nodes_features = {key: nodes_features_post[key] - nodes_features_pre[key] for key in nodes_features_post.keys()}
+            else:
+                # If differential is not required compute features only on current time window
+                filtered_data = self.filter_data_by_time(data, time)
+                nodes_features = self.get_all_nodes_features(nodes_names=routers_names,
+                                                             data=filtered_data)
             # Add nodes features to graph
             # print('graph.nodes: {}'.format(graph.nodes))
             # print('nodes_features: {}'.format(nodes_features))
@@ -411,6 +428,7 @@ class Extractor():
                                                                           split=split)
                     # Add the graphs to the list of tg_graphs
                     list_of_tg_graphs += tg_graphs
+            # print('list_of_tg_graphs: {}'.format(list_of_tg_graphs))
             # Close info line
             print()
             # Store list of tg graphs in the raw folder of the tg dataset

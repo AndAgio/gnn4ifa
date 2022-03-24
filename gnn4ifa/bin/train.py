@@ -23,6 +23,7 @@ class Trainer():
                  test_sim_ids=[5],
                  simulation_time=300,
                  time_att_start=50,
+                 differential=False,
                  chosen_model='class_gcn_2x100_mean',
                  masking=False,
                  percentile=0.99,
@@ -44,6 +45,9 @@ class Trainer():
         self.test_sim_ids = test_sim_ids
         self.simulation_time = simulation_time
         self.time_att_start = time_att_start
+        if differential and chosen_model.split('_')[0] == 'class':
+            raise ValueError('Differential is not available for classification model')
+        self.differential = differential
         # Model related variables
         if chosen_model.split('_')[0] == 'class':
             self.mode = 'class'
@@ -91,6 +95,7 @@ class Trainer():
                 transform = tg.transforms.Compose([NormalizeFeatures(attrs=['x'])])
         else:
             raise ValueError('Something wrong with selected mode between classification and anomaly!')
+
         # Training
         self.train_dataset = IfaDataset(root=self.dataset_folder,
                                         download_folder=self.download_dataset_folder,
@@ -102,7 +107,9 @@ class Trainer():
                                         test_sim_ids=self.test_sim_ids,
                                         simulation_time=self.simulation_time,
                                         time_att_start=self.time_att_start,
+                                        differential=self.differential,
                                         split='train')
+        print('self.train_dataset[0]: {}'.format(self.train_dataset[0]))
         print('Number of training examples: {}'.format(len(self.train_dataset)))
         self.train_loader = get_data_loader(
             self.train_dataset,
@@ -119,6 +126,7 @@ class Trainer():
                                       test_sim_ids=self.test_sim_ids,
                                       simulation_time=self.simulation_time,
                                       time_att_start=self.time_att_start,
+                                      differential=self.differential,
                                       split='val')
         print('Number of validation examples: {}'.format(len(self.val_dataset)))
         self.val_loader = get_data_loader(
@@ -133,15 +141,24 @@ class Trainer():
                                        topology=self.train_topology,
                                        train_sim_ids=self.train_sim_ids,
                                        val_sim_ids=self.val_sim_ids,
-                                       test_sim_ids=self.test_sim_ids,
+                                       test_sim_ids=self.test_sim_ids if self.mode == 'class' else [1, 2, 3, 4, 5],
                                        simulation_time=self.simulation_time,
                                        time_att_start=self.time_att_start,
+                                       differential=self.differential,
                                        split='test')
         print('Number of test examples: {}'.format(len(self.test_dataset)))
-        self.test_loader = get_data_loader(
-            self.test_dataset if self.mode == 'class' else self.test_dataset.get_all_data(frequencies=self.frequencies),
-            batch_size=1,
-            shuffle=False)
+        if self.mode == 'class':
+            self.test_loader = get_data_loader(self.test_dataset,
+                                               batch_size=1,
+                                               shuffle=False)
+        elif self.differential:
+            self.test_loader = self.test_dataset.get_data_dict(frequencies=self.frequencies)
+        elif not self.differential:
+            self.test_loader = get_data_loader(self.test_dataset.get_all_data(frequencies=self.frequencies),
+                                               batch_size=1,
+                                               shuffle=False)
+        else:
+            raise ValueError('Something wrong with test set loading!')
         # Get the number of node features
         self.num_node_features = self.train_dataset.num_features
         print('self.num_node_features:', self.num_node_features)
@@ -211,14 +228,16 @@ class Trainer():
         if not os.path.exists(self.trained_models_folder):
             os.makedirs(self.trained_models_folder)
         if self.mode == 'class':
-            model_name = '{} sce_{} topo_{} best.pt'.format(self.chosen_model,
-                                                            self.train_scenario,
-                                                            self.train_topology)
-        elif self.mode == 'anomaly':
-            model_name = '{} mask_{} sce_{} topo_{} best.pt'.format(self.chosen_model,
-                                                                    self.masking,
+            model_name = '{} sce_{} topo_{} diff_{} best.pt'.format(self.chosen_model,
                                                                     self.train_scenario,
-                                                                    self.train_topology)
+                                                                    self.train_topology,
+                                                                    self.differential)
+        elif self.mode == 'anomaly':
+            model_name = '{} mask_{} sce_{} topo_{} diff_{} best.pt'.format(self.chosen_model,
+                                                                            self.masking,
+                                                                            self.train_scenario,
+                                                                            self.train_topology,
+                                                                            self.differential)
         else:
             raise ValueError('Something went wrong with mode selection')
         model_path = os.path.join(self.trained_models_folder, model_name)
@@ -226,14 +245,16 @@ class Trainer():
 
     def load_best_model(self):
         if self.mode == 'class':
-            model_name = '{} sce_{} topo_{} best.pt'.format(self.chosen_model,
-                                                            self.train_scenario,
-                                                            self.train_topology)
-        elif self.mode == 'anomaly':
-            model_name = '{} mask_{} sce_{} topo_{} best.pt'.format(self.chosen_model,
-                                                                    self.masking,
+            model_name = '{} sce_{} topo_{} diff_{} best.pt'.format(self.chosen_model,
                                                                     self.train_scenario,
-                                                                    self.train_topology)
+                                                                    self.train_topology,
+                                                                    self.differential)
+        elif self.mode == 'anomaly':
+            model_name = '{} mask_{} sce_{} topo_{} diff_{} best.pt'.format(self.chosen_model,
+                                                                            self.masking,
+                                                                            self.train_scenario,
+                                                                            self.train_topology,
+                                                                            self.differential)
         else:
             raise ValueError('Something went wrong with mode selection')
         model_path = os.path.join(self.trained_models_folder, model_name)
@@ -404,7 +425,9 @@ class Trainer():
         self.model.eval()
         if self.mode == 'class':
             self._test_class()
-        elif self.mode == 'anomaly':
+        elif self.mode == 'anomaly' and self.differential:
+            self._test_anomaly_differential()
+        elif self.mode == 'anomaly' and not self.differential:
             self._test_anomaly()
         else:
             raise ValueError('Something wrong with mode selection')
@@ -456,6 +479,29 @@ class Trainer():
                                                             y_true=all_labels)
             self.print_test_message(index_batch=batch_index, metrics=scores)
         print()
+
+    @torch.no_grad()
+    def _test_anomaly_differential(self):
+        threshold_metric = 'mse'
+        # Get threshold from training
+        threshold = self.get_threshold(metric=threshold_metric)
+        # Define empty list for simulations metrics
+        simulations_false_alarms = []
+        simulations_true_alarms = []
+        # Iterate over all simulations belonging to the test set
+        for sim_index, simulation in enumerate(self.test_loader):
+            # Iterate over each sample of the simulation
+            predictions = []
+            labels = []
+            for sample_index, sample in enumerate(simulation):
+                sample = sample.to(self.device)
+                prediction, label = self.test_step(sample, metrics=None, threshold=threshold, threshold_metric=threshold_metric)
+                # Append prediction and label to the list containing every prediction and label of the simulation
+                predictions.append(prediction)
+                labels.append(label)
+            print('predictions: {}'.format(predictions))
+            print('labels: {}'.format(labels))
+
 
     @torch.no_grad()
     def get_threshold(self, metric='mae'):

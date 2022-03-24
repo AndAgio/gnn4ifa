@@ -25,6 +25,7 @@ class IfaDataset(InMemoryDataset):
                  test_sim_ids=[5],
                  simulation_time=300,
                  time_att_start=50,
+                 differential=False,
                  split='train'):
         self.download_folder = download_folder
         assert scenario in ['existing', 'non_existing', 'normal']
@@ -43,6 +44,7 @@ class IfaDataset(InMemoryDataset):
         self.test_sim_ids = test_sim_ids
         self.simulation_time = simulation_time
         self.time_att_start = time_att_start
+        self.differential = differential
         self.root = root
         super(IfaDataset, self).__init__(self.root, transform, pre_transform)
         if split == 'train':
@@ -78,15 +80,16 @@ class IfaDataset(InMemoryDataset):
         elif self.scenario == 'existing' and self.topology == 'small':
             frequencies = ['4x', '8x', '16x', '32x', '64x']
         elif self.scenario == 'non_existing' and self.topology == 'dfn':
-            raise FileNotFoundError('Scenario {} and train_topology {} are incompatible at the moment'.format(self.scenario,
-                                                                                                        self.topology))
+            raise FileNotFoundError(
+                'Scenario {} and train_topology {} are incompatible at the moment'.format(self.scenario,
+                                                                                          self.topology))
         elif self.scenario == 'non_existing' and self.topology == 'small':
             frequencies = ['16x', '32x', '64x', '128x', '256x']
         elif self.scenario == 'normal':
             frequencies = None
         else:
             raise ValueError('Something wrong with train_scenario {} and train_topology {}'.format(self.scenario,
-                                                                                       self.topology))
+                                                                                                   self.topology))
         # Define files that should be available as raw in the dataset
         names = ['drop-trace', 'pit-size', 'rate-trace']
         if frequencies:
@@ -98,15 +101,21 @@ class IfaDataset(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return ['train_{}_data.pt'.format(self.train_sim_ids),
-                'val_{}_data.pt'.format(self.val_sim_ids),
-                'test_{}_data.pt'.format(self.test_sim_ids)]
+        return ['train_{}_diff_{}_data.pt'.format(self.train_sim_ids,
+                                                  self.differential),
+                'val_{}_diff_{}_data.pt'.format(self.val_sim_ids,
+                                                self.differential),
+                'test_{}_diff_{}_data.pt'.format(self.test_sim_ids,
+                                                 self.differential)]
 
     @property
     def processed_file_names(self):
-        return ['train_{}_data.pt'.format(self.train_sim_ids),
-                'val_{}_data.pt'.format(self.val_sim_ids),
-                'test_{}_data.pt'.format(self.test_sim_ids)]
+        return ['train_{}_diff_{}_data.pt'.format(self.train_sim_ids,
+                                                  self.differential),
+                'val_{}_diff_{}_data.pt'.format(self.val_sim_ids,
+                                                self.differential),
+                'test_{}_diff_{}_data.pt'.format(self.test_sim_ids,
+                                                 self.differential)]
 
     def download(self, force=False):
         # Download dataset only if the download folder is not found
@@ -144,42 +153,93 @@ class IfaDataset(InMemoryDataset):
                   val_sim_ids=self.val_sim_ids,
                   test_sim_ids=self.test_sim_ids,
                   simulation_time=self.simulation_time,
-                  time_att_start=self.time_att_start).run(downloaded_data_file=file_names,
-                                                          raw_dir=self.raw_dir,
-                                                          raw_file_names=self.raw_file_names)
+                  time_att_start=self.time_att_start,
+                  differential=self.differential).run(downloaded_data_file=file_names,
+                                                      raw_dir=self.raw_dir,
+                                                      raw_file_names=self.raw_file_names)
+
+    # def process(self):
+    #     print('Start processing')
+    #     # Check if it is possible to load the tg raw file
+    #     try:
+    #         print('self.raw_file_names[0]: {}'.format(self.raw_file_names[0]))
+    #         data_list = torch.load(os.path.join(self.raw_dir, self.raw_file_names[0]))
+    #         print('Try worked')
+    #     except FileNotFoundError:
+    #         print('Inside exception')
+    #         # Check if the dataset is already downloaded or not
+    #         # Gather real names of files
+    #         existing_file_names = glob.glob(os.path.join(self.download_dir, '*', '*.txt'))
+    #         # If the two sets don't match it means that the dataset was not downloaded yet
+    #         required_file_names = [os.path.join(self.download_dir, name) for name in self.download_file_names]
+    #         print('existing_file_names: {}'.format(existing_file_names))
+    #         print('required_file_names: {}'.format(required_file_names))
+    #         if set(required_file_names) != set(existing_file_names):
+    #             print('Didn\'t find the dataset. Downloading it...')
+    #             self.download()
+    #             print('Running the extractor...')
+    #             self.convert_dataset_to_tg_graphs()
+    #         else:
+    #             print('Tg raw data not found, but dataset was found. Running the extractor...')
+    #             self.convert_dataset_to_tg_graphs()
+    #     # Iterate over the splits, load raw data, filter and transform them
+    #     for index in range(len(self.raw_file_names)):
+    #         # Load the raw tg_data
+    #         data_list = torch.load(os.path.join(self.raw_dir, self.raw_file_names[index]))
+    #         # Apply pre_filter and pre_transform if necessary
+    #         if self.pre_filter is not None:
+    #             data_list = [data for data in data_list if self.pre_filter(data)]
+    #         if self.pre_transform is not None:
+    #             data_list = [self.pre_transform(data) for data in data_list]
+    #         # Store
+    #         self.store_processed_data(data_list, self.processed_paths[index])
 
     def process(self):
-        # Check if it is possible to load the tg raw file
-        try:
-            data_list = torch.load(os.path.join(self.raw_dir, self.raw_file_names[0]))
-        except FileNotFoundError:
-            # Check if the dataset is already downloaded or not
-            # Gather real names of files
-            existing_file_names = glob.glob(os.path.join(self.download_dir, '*', '*.txt'))
-            # If the two sets don't match it means that the dataset was not downloaded yet
-            required_file_names = [os.path.join(self.download_dir, name) for name in self.download_file_names]
-            if set(required_file_names) != set(existing_file_names):
-                print('Didn\'t find the dataset. Downloading it...')
-                self.download()
-                print('Running the extractor...')
-                self.convert_dataset_to_tg_graphs()
-            else:
-                print('Tg raw data not found, but dataset was found. Running the extractor...')
-                self.convert_dataset_to_tg_graphs()
+        print('Start processing')
         # Iterate over the splits, load raw data, filter and transform them
         for index in range(len(self.raw_file_names)):
-            # Load the raw tg_data
-            data_list = torch.load(os.path.join(self.raw_dir, self.raw_file_names[index]))
-            # Apply pre_filter and pre_transform if necessary
-            if self.pre_filter is not None:
-                data_list = [data for data in data_list if self.pre_filter(data)]
-            if self.pre_transform is not None:
-                data_list = [self.pre_transform(data) for data in data_list]
-            # Store
-            self.store_processed_data(data_list, self.processed_paths[index])
+            # Check if it is possible to load the tg raw file
+            try:
+                print('self.raw_file_names[index]: {}'.format(self.raw_file_names[index]))
+                data_list = torch.load(os.path.join(self.raw_dir, self.raw_file_names[index]))
+                print('Try worked')
+                # Apply pre_filter and pre_transform if necessary
+                if self.pre_filter is not None:
+                    data_list = [data for data in data_list if self.pre_filter(data)]
+                if self.pre_transform is not None:
+                    data_list = [self.pre_transform(data) for data in data_list]
+                # Store
+                self.store_processed_data(data_list, self.processed_paths[index])
+            except FileNotFoundError:
+                print('Inside exception')
+                # Check if the dataset is already downloaded or not
+                # Gather real names of files
+                existing_file_names = glob.glob(os.path.join(self.download_dir, '*', '*.txt'))
+                # If the two sets don't match it means that the dataset was not downloaded yet
+                required_file_names = [os.path.join(self.download_dir, name) for name in self.download_file_names]
+                print('existing_file_names: {}'.format(existing_file_names))
+                print('required_file_names: {}'.format(required_file_names))
+                if set(required_file_names) != set(existing_file_names):
+                    print('Didn\'t find the dataset. Downloading it...')
+                    self.download()
+                    print('Running the extractor...')
+                    self.convert_dataset_to_tg_graphs()
+                else:
+                    print('Tg raw data not found, but dataset was found. Running the extractor...')
+                    self.convert_dataset_to_tg_graphs()
+                # Load the raw tg_data
+                data_list = torch.load(os.path.join(self.raw_dir, self.raw_file_names[index]))
+                # Apply pre_filter and pre_transform if necessary
+                if self.pre_filter is not None:
+                    data_list = [data for data in data_list if self.pre_filter(data)]
+                if self.pre_transform is not None:
+                    data_list = [self.pre_transform(data) for data in data_list]
+                # Store
+                self.store_processed_data(data_list, self.processed_paths[index])
 
     def store_processed_data(self, data_list, name):
         data, slices = self.collate(data_list)
+        print('Storing data files to {}...'.format(name))
         torch.save((data, slices), name)
 
     def get_freq_data(self, frequencies=[8, 16, 32, 64]):
@@ -204,6 +264,9 @@ class IfaDataset(InMemoryDataset):
         # Gather all graphs over all scenarios and get only those graphs that have attack_is_on==False
         datas = self.get_all_data(frequencies=frequencies)
         print('Number of non-filtered graphs: {}'.format(len(datas)))
+        for data in datas:
+            print('data: {}'.format(data))
+            break
         data = [data for data in datas if data['attack_is_on'] == 0]
         print('Number of filtered graphs: {}'.format(len(data)))
         return data
@@ -217,3 +280,29 @@ class IfaDataset(InMemoryDataset):
         else:
             data = [data for data in self]
         return data
+
+    def get_data_dict(self, frequencies=None):
+        # Return all graphs
+        # Gather all graphs over all scenarios
+        # If frequencies are specified then filter data by frequencies
+        if frequencies:
+            data = self.get_freq_data(frequencies=frequencies)
+        else:
+            data = [data for data in self]
+        # Define empty dictionary
+        data_dictionary = {0: []}
+        sim_index = 0
+        last_time = 1
+        for sample in data:
+            # print('sim_index: {}'.format(sim_index))
+            # print('last_time: {}'.format(last_time))
+            # print('sample.time.numpy().item(): {}'.format(sample.time.numpy().item()))
+            if sample.time.numpy().item() != last_time + 1:
+                sim_index += 1
+                last_time = 2
+                data_dictionary[sim_index] = []
+            else:
+                last_time += 1
+            data_dictionary[sim_index].append(sample)
+        # print('data_dictionary: {}'.format(data_dictionary))
+        return data_dictionary
