@@ -488,8 +488,9 @@ class Trainer():
         # Define empty list for simulations metrics
         simulations_false_alarms = []
         simulations_true_alarms = []
+        simulations_exact_alarms = []
         # Iterate over all simulations belonging to the test set
-        for sim_index, simulation in enumerate(self.test_loader):
+        for sim_index, simulation in self.test_loader.items():
             # Iterate over each sample of the simulation
             predictions = []
             labels = []
@@ -497,11 +498,33 @@ class Trainer():
                 sample = sample.to(self.device)
                 prediction, label = self.test_step(sample, metrics=None, threshold=threshold, threshold_metric=threshold_metric)
                 # Append prediction and label to the list containing every prediction and label of the simulation
-                predictions.append(prediction)
-                labels.append(label)
-            print('predictions: {}'.format(predictions))
-            print('labels: {}'.format(labels))
-
+                predictions.append(prediction.numpy().item())
+                labels.append(label.numpy().item())
+            # print('predictions: {}'.format(predictions))
+            # print('labels: {}'.format(labels))
+            # Get number of false alarms, true alarms and the behaviour at the
+            # starting point of the attack (exact alarm) for the simulation
+            false_alarms = 0
+            true_alarms = 0
+            exact_alarm = 0
+            for index in range(len(predictions)):
+                if predictions[index] == 1 and labels[index] == 1:
+                    true_alarms += 1
+                elif predictions[index] == 1 and labels[index] == 0:
+                    false_alarms += 1
+                else:
+                    pass
+                if labels[index] == 1 and labels[index - 1] == 0:
+                    if predictions[index] == 1 and labels[index] == 1:
+                        exact_alarm = 1
+            # Append the values to the list of values defining performances over simulations
+            simulations_false_alarms.append(false_alarms)
+            simulations_true_alarms.append(true_alarms)
+            simulations_exact_alarms.append(exact_alarm)
+        # Print the results
+        print('True alarms over testing simulations: {}'.format(simulations_true_alarms))
+        print('False alarms over testing simulations: {}'.format(simulations_false_alarms))
+        print('Exact alarm over testing simulations: {}'.format(simulations_exact_alarms))
 
     @torch.no_grad()
     def get_threshold(self, metric='mae'):
@@ -536,7 +559,13 @@ class Trainer():
             values.append(values_samples)
         # Get threshold value depending on the percentile given
         sorted_values = np.sort(values)
-        threshold_index = int(len(sorted_values) * self.percentile)
+        print('len(values) = {}'.format(len(values)))
+        if 0 < self.percentile < 1:
+            threshold_index = int(len(sorted_values) * self.percentile)
+        elif self.percentile == 1:
+            threshold_index = int(len(sorted_values)) - 1
+        else:
+            raise ValueError('Percentile should be between 0 and 1')
         threshold = sorted_values[threshold_index]
         print('sorted_values: {}'.format(sorted_values))
         print('{} threshold obtained: {}'.format(metric.upper(), threshold))
@@ -569,11 +598,11 @@ class Trainer():
             y_pred = torch.as_tensor(np.array([preds_mses > threshold]).astype('int'))
             # print('preds: {} -> original_x: {}'.format(preds,
             #                                            y_true))
-            print('preds_mses: {:.5f} -> label: {} -> '
-                  'prediction: {} -> freq: {}'.format(preds_mses,
-                                                      data.attack_is_on.item(),
-                                                      y_pred.item(),
-                                                      data.frequency.item()))
+            # print('preds_mses: {:.5f} -> label: {} -> '
+            #       'prediction: {} -> freq: {}'.format(preds_mses,
+            #                                           data.attack_is_on.item(),
+            #                                           y_pred.item(),
+            #                                           data.frequency.item()))
         elif self.mode == 'class':
             y_pred = self.model(data)
         # Get labels from data

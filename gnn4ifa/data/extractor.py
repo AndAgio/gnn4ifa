@@ -264,7 +264,7 @@ class Extractor():
         if self.scenario != 'normal':
             graph.graph['frequency'] = int(frequency)
         else:
-            pass
+            graph.graph['frequency'] = -1
         # Return graph with labels
         return graph
 
@@ -371,6 +371,11 @@ class Extractor():
             # Append the graph for the current time window to the list of graphs
             tg_graphs.append(tg_graph)
         # Return the list of pytorch geometric graphs
+        for sample in tg_graphs:
+            try:
+                sample.attack_is_on
+            except KeyError:
+                raise ValueError('The sample {} does not have attack_is_on attribute!'.format(sample))
         # print('tg_graphs: {}'.format(tg_graphs))
         return tg_graphs
 

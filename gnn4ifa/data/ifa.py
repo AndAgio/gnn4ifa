@@ -240,6 +240,11 @@ class IfaDataset(InMemoryDataset):
     def store_processed_data(self, data_list, name):
         data, slices = self.collate(data_list)
         print('Storing data files to {}...'.format(name))
+        # Create tg processed folder if it doesn't exist
+        pr_path = os.path.join(*name.split('/')[:-1])
+        print('pr_path: {}'.format(pr_path))
+        if not os.path.exists(pr_path):
+            os.makedirs(pr_path)
         torch.save((data, slices), name)
 
     def get_freq_data(self, frequencies=[8, 16, 32, 64]):
