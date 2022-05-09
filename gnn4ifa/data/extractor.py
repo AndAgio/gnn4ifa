@@ -19,6 +19,8 @@ class Extractor():
     def __init__(self, data_dir='ifa_data',
                  scenario='existing',
                  topology='small',
+                 attackers='fixed',
+                 n_attackers=None,
                  train_sim_ids=[1, 2, 3],
                  val_sim_ids=[4],
                  test_sim_ids=[5],
@@ -29,6 +31,9 @@ class Extractor():
 
         self.scenario = scenario
         self.topology = topology
+        self.attackers = attackers
+        # assert n_attackers is not None
+        self.n_attackers = n_attackers
 
         self.train_sim_ids = train_sim_ids
         self.val_sim_ids = val_sim_ids
@@ -45,12 +50,16 @@ class Extractor():
         data = {}
         # Iterate over all simulation files and read them
         for file in files:
+            # print('file: {}'.format(file))
             # Check file type
             file_type = file.split('/')[-1].split('-')[0]
             if file_type == 'format':
                 continue
             if file_type == 'pit':
                 file = Extractor.convert_pit_to_decent_format(file)
+            if file_type == 'topology':
+                # print('Converting topology file to decent format...')
+                file = Extractor.convert_topology_to_decent_format(file)
             # Read csv file
             file_data = pd.read_csv(file, sep='\t', index_col=False)
             # Put data in dictionary
@@ -85,7 +94,15 @@ class Extractor():
         return new_file
 
     @staticmethod
+    def remove_topo_data_from_dict(data):
+        # print(f'data: {data}')
+        data = {key: value for key, value in data.items() if key.split('/')[-1].split('-')[0] != 'topology'}
+        # print(f'data: {data}')
+        return data
+
+    @staticmethod
     def get_router_names(data):
+        data = Extractor.remove_topo_data_from_dict(data)
         # Get names of transmitter devices
         routers_names = data['rate']['Node'].unique()
         # Consider routers only
@@ -97,6 +114,8 @@ class Extractor():
     def filter_data_by_time(data, time, verbose=False):
         if verbose:
             print('Time: {}'.format(time))
+        # Remove topology data from data dictionary
+        data = Extractor.remove_topo_data_from_dict(data)
         filtered_data = {}
         for key, value in data.items():
             filtered_data[key] = data[key][data[key]['Time'] == time]
@@ -106,18 +125,56 @@ class Extractor():
     def extract_data_up_to(data, time, verbose=False):
         if verbose:
             print('Time: {}'.format(time))
+        data = Extractor.remove_topo_data_from_dict(data)
         filtered_data = {}
         for key, value in data.items():
             filtered_data[key] = data[key][data[key]['Time'] <= time]
         return filtered_data
 
-    def get_graph_structure(self, debug=False):
+    @staticmethod
+    def get_lines_from_unformatted_topology_file(path_to_file):
+        reversed_lines = reversed(list(open(path_to_file)))
+        lines_to_keep = []
+        for line in reversed_lines:
+            if line.rstrip() == '':
+                continue
+            if line.rstrip()[0] == '#':
+                break
+            else:
+                lines_to_keep.append('\t'.join(line.split())+'\n')
+        lines_to_keep = reversed(lines_to_keep)
+        print('lines_to_keep: {}'.format(lines_to_keep))
+        return lines_to_keep
+
+    @staticmethod
+    def convert_topology_to_decent_format(file):
+        final_lines = Extractor.get_lines_from_unformatted_topology_file(file)
+        # Store file with new name
+        new_file = os.path.join('/', os.path.join(*file.split('/')[:-1]),
+                                'format-{}'.format(file.split('/')[-1]))
+        if os.path.exists(new_file):
+            os.remove(new_file)
+        with open(new_file, 'w') as f:
+            f.write('Source\tDestination\n')
+            for item in final_lines:
+                f.write(item)
+        return new_file
+
+    @staticmethod
+    def get_graph_structure(topology_lines_dataframe, debug=False):
         # Open file containing train_topology structure
-        topology_file = os.path.join(self.data_dir, 'topologies', '{}_topology.txt'.format(self.topology))
+        # topology_file = os.path.join(self.data_dir, 'topologies', '{}_topology.txt'.format(self.topology))
+        # router_links = []
+        # for line in open(topology_file, 'r'):
+        #     source = line.split(',')[0]
+        #     dest = line.split(',')[1].split('\n')[0]
+        #     if source[:4] == 'Rout' and dest[:4] == 'Rout':
+        #         router_links.append([source[4:], dest[4:]])
+        topology_lines_dataframe = topology_lines_dataframe.reset_index()  # make sure indexes pair with number of rows
         router_links = []
-        for line in open(topology_file, 'r'):
-            source = line.split(',')[0]
-            dest = line.split(',')[1].split('\n')[0]
+        for index, row in topology_lines_dataframe.iterrows():
+            source = row['Source']
+            dest = row['Destination']
             if source[:4] == 'Rout' and dest[:4] == 'Rout':
                 router_links.append([source[4:], dest[4:]])
         # print('router_links: {}'.format(router_links))
@@ -195,25 +252,25 @@ class Extractor():
         features[7 if mode == 'array' else 'out_nacks'] = out_nacks
         # Get InSatisfiedInterests of router at hand
         in_satisfied_interests = \
-        rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'InSatisfiedInterests')]['PacketRaw']
+            rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'InSatisfiedInterests')]['PacketRaw']
         in_satisfied_interests_list = in_satisfied_interests.to_list()
         in_satisfied_interests = sum(i for i in in_satisfied_interests)
         features[8 if mode == 'array' else 'in_interests'] = in_satisfied_interests
         # Get InTimedOutInterests of router at hand
         in_timedout_interests = \
-        rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'InTimedOutInterests')]['PacketRaw']
+            rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'InTimedOutInterests')]['PacketRaw']
         in_timedout_interests_list = in_timedout_interests.to_list()
         in_timedout_interests = sum(i for i in in_timedout_interests_list)
         features[9 if mode == 'array' else 'in_timedout_interests'] = in_timedout_interests
         # Get OutSatisfiedInterests of router at hand
         out_satisfied_interests = \
-        rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'OutSatisfiedInterests')]['PacketRaw']
+            rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'OutSatisfiedInterests')]['PacketRaw']
         out_satisfied_interests_list = out_satisfied_interests.to_list()
         out_satisfied_interests = sum(i for i in out_satisfied_interests_list)
         features[10 if mode == 'array' else 'out_satisfied_interests'] = out_satisfied_interests
         # Get OutTimedOutInterests of router at hand
         out_timedout_interests = \
-        rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'OutTimedOutInterests')]['PacketRaw']
+            rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'OutTimedOutInterests')]['PacketRaw']
         out_timedout_interests_list = out_timedout_interests.to_list()
         out_timedout_interests = sum(i for i in out_timedout_interests_list)
         features[11 if mode == 'array' else 'out_timedout_interests'] = out_timedout_interests
@@ -229,7 +286,8 @@ class Extractor():
                 if math.isnan(value):
                     nan_count += 1
             if nan_count != 0:
-                raise ValueError('Something very wrong! All features are zeros!')
+                raise ValueError('Something very wrong! All features are zeros!\n'
+                                 'Features = {}'.format(features))
         else:
             raise ValueError('Invalid mode for extracting node features!')
 
@@ -247,7 +305,7 @@ class Extractor():
         # Return nodes_features
         return nodes_features
 
-    def insert_labels(self, graph, time, frequency):
+    def insert_labels(self, graph, time, frequency, attackers, n_attackers):
         # print('Inserting labels...')
         if self.scenario != 'normal':
             # CHeck if time of the current window is before or after the attack start time
@@ -265,8 +323,46 @@ class Extractor():
             graph.graph['frequency'] = int(frequency)
         else:
             graph.graph['frequency'] = -1
+        # Set also attack frequency for dataset extraction purposes
+        if self.scenario != 'normal':
+            graph.graph['attacers_type'] = 0 if attackers == 'fixed' else 1
+        else:
+            graph.graph['attacers_type'] = -1
+        # Set also attack frequency for dataset extraction purposes
+        if self.scenario != 'normal':
+            graph.graph['n_attackers'] = int(n_attackers)
+        else:
+            graph.graph['n_attackers'] = -1
         # Return graph with labels
         return graph
+
+    def get_simulation_time(self, simulation_files):
+        # Check if simulation has run up until the end or not. To avoid NaN issues inside features
+        rate_trace_file = [file for file in simulation_files if 'rate-trace' in file][0]
+        last_line_of_rate_trace_file = pd.read_csv(rate_trace_file, sep='\t', index_col=False).iloc[-1]
+        simulation_time_from_rate_trace_file = last_line_of_rate_trace_file['Time']
+        # Set simulation time depending on the last line of the trace file
+        if simulation_time_from_rate_trace_file < self.simulation_time - 1:
+            simulation_time = simulation_time_from_rate_trace_file - 1
+        else:
+            simulation_time = self.simulation_time - 1
+        # Double check simulation time from the pit trace file
+        pit_trace_file = [file for file in simulation_files if 'format-pit-size' in file][0]
+        last_line_of_pit_trace_file = pd.read_csv(pit_trace_file, sep='\t', index_col=False).iloc[-1]
+        simulation_time_from_pit_trace_file = last_line_of_pit_trace_file['Time'] - 1
+        if simulation_time_from_pit_trace_file < simulation_time:
+            simulation_time = simulation_time_from_pit_trace_file
+        # Double check simulation time from the drop trace file
+        drop_trace_file = [file for file in simulation_files if 'drop-trace' in file][0]
+        last_line_of_drop_trace_file = pd.read_csv(drop_trace_file, sep='\t', index_col=False).iloc[-1]
+        simulation_time_from_drop_trace_file = last_line_of_drop_trace_file['Time'] - 1
+        print(f'PIT last time: {simulation_time_from_pit_trace_file}')
+        print(f'Rate trace last time: {simulation_time_from_rate_trace_file}')
+        print(f'Drop trace last time: {simulation_time_from_drop_trace_file}')
+        if simulation_time_from_drop_trace_file < simulation_time:
+            simulation_time = simulation_time_from_drop_trace_file
+        print(f'simulation_time: {simulation_time}')
+        return simulation_time
 
     def extract_graphs_from_simulation_files(self, simulation_files, simulation_index, total_simulations, split):
         # print('simulation_files: {}'.format(simulation_files))
@@ -278,28 +374,27 @@ class Extractor():
         start_time = 1
         # Define empty list containing all graphs found in a simulation
         tg_graphs = []
-        # Check if simulation has run up until the end or not. To avoid NaN issues inside features
-        rate_trace_file = [file for file in simulation_files if 'rate-trace' in file][0]
-        last_line_of_rate_trace_file = pd.read_csv(rate_trace_file, sep='\t', index_col=False).iloc[-1]
-        simulation_time_from_rate_trace_file = last_line_of_rate_trace_file['Time']
-        # Set simulation time depending on the last line of the trace file
-        if simulation_time_from_rate_trace_file < self.simulation_time - 1:
-            simulation_time = simulation_time_from_rate_trace_file - 1
-        else:
-            simulation_time = self.simulation_time - 1
+        # Get simulation time
+        simulation_time = self.get_simulation_time(simulation_files)
         # For each index get the corresponding network traffic window and extract the features in that window
         for time in range(start_time, simulation_time + 1):
             if self.scenario != 'normal':
                 # Print info
-                frequency = simulation_files[0].split("/")[-2].split('x')[0]
+                frequency = simulation_files[0].split("/")[-3].split('x')[0]
+                attackers = simulation_files[0].split("/")[-4].split('_')[0]
+                n_attackers = simulation_files[0].split("/")[-2].split('_')[0]
                 print(
                     "\r| Extracting {} split... |"
                     " Scenario: {} | Topology: {} |"
+                    " Attackers selection: {} |"
+                    " N attackers: {} |"
                     " Frequency: {} |"
                     " Simulation progress: {}/{} |"
                     " Time steps progress: {}/{} |".format(split,
                                                            self.scenario,
                                                            self.topology,
+                                                           attackers,
+                                                           n_attackers,
                                                            frequency,
                                                            simulation_index,
                                                            total_simulations,
@@ -323,8 +418,9 @@ class Extractor():
             if self.scenario == 'existing' and self.topology == 'dfn' and frequency == '32' \
                     and split == 'train' and simulation_index == 1 and time >= 299:
                 continue
+            # print(f'data: {data}')
             # Get graph of the network during the current time window
-            graph = self.get_graph_structure()
+            graph = self.get_graph_structure(topology_lines_dataframe=data['topology'])
             if self.differential:
                 # If differential is required compute difference between current time window and previous time window
                 if time == start_time:
@@ -335,7 +431,8 @@ class Extractor():
                 filtered_data = self.filter_data_by_time(data, time)
                 nodes_features_post = self.get_all_nodes_features(nodes_names=routers_names,
                                                                   data=filtered_data)
-                nodes_features = {key: nodes_features_post[key] - nodes_features_pre[key] for key in nodes_features_post.keys()}
+                nodes_features = {key: nodes_features_post[key] - nodes_features_pre[key] for key in
+                                  nodes_features_post.keys()}
             else:
                 # If differential is not required compute features only on current time window
                 filtered_data = self.filter_data_by_time(data, time)
@@ -354,7 +451,9 @@ class Extractor():
             # Add labels to the graph as graph and nodes attributes
             graph = self.insert_labels(graph,
                                        time=time,
-                                       frequency=frequency)
+                                       frequency=frequency,
+                                       attackers=attackers,
+                                       n_attackers=n_attackers)
             # Debugging purposes
             # print('graph.graph: {}'.format(graph.graph))
             # print('graph.nodes.data(): {}'.format(graph.nodes.data()))
@@ -388,51 +487,74 @@ class Extractor():
 
     def split_files(self, files):
         # Split files depending on the train ids
+        print('files: {}'.format(files))
         train_files = [file for file in files if int(file.split('-')[-1].split('.')[0]) in self.train_sim_ids]
-        # print('train_files: {}'.format(train_files))
+        print('train_files: {}'.format(train_files))
         val_files = [file for file in files if int(file.split('-')[-1].split('.')[0]) in self.val_sim_ids]
-        # print('val_files: {}'.format(val_files))
+        print('val_files: {}'.format(val_files))
         test_files = [file for file in files if int(file.split('-')[-1].split('.')[0]) in self.test_sim_ids]
-        # print('test_files: {}'.format(test_files))
+        print('test_files: {}'.format(test_files))
         return train_files, val_files, test_files
+
+    @staticmethod
+    def rename_topology_files(files):
+        for index, file in enumerate(files):
+            if '_topology' in file.split('/')[-1]:
+                new_name = os.path.join('/',
+                                        os.path.join(*file.split('/')[:-1]),
+                                        '{}-{}.txt'.format(file.split('/')[-1].split('.')[0].split('_')[1],
+                                                           file.split('/')[-1].split('.')[0].split('_')[0]))
+                os.rename(file, new_name)
+                files[index] = new_name
+        return files
 
     @timeit
     def run(self, downloaded_data_file, raw_dir, raw_file_names):
         # print('\nraw_file_names: {}\n'.format(raw_file_names))
+        downloaded_data_file = Extractor.rename_topology_files(downloaded_data_file)
         # Split the received files into train, validation and test
         files_lists = self.split_files(downloaded_data_file)
         # Iterate over train validation and test and get graph samples
         print('Extracting graph data from each simulation of each split. This may take a while...')
         for index, files in enumerate(files_lists):
             list_of_tg_graphs = []
-            # Iterate over frequencies
-            frequencies = np.unique([file.split('/')[-2].split('x')[0] for file in files])
-            # print('frequencies: {}'.format(frequencies))
-            for frequence in frequencies:
-                freq_files = [file for file in files if file.split('/')[-2].split('x')[0] == frequence]
-                # print('freq_files: {}'.format(freq_files))
-                # Iterating over index of simulations
-                if index == 0:
-                    split = 'train'
-                    simulation_indices = self.train_sim_ids
-                elif index == 1:
-                    split = 'validation'
-                    simulation_indices = self.val_sim_ids
-                elif index == 2:
-                    split = 'test'
-                    simulation_indices = self.test_sim_ids
-                else:
-                    raise ValueError('Something went wrong with simulation indices')
-                for s_index, simulation_index in enumerate(simulation_indices):
-                    simulation_files = [file for file in freq_files if
-                                        int(file.split('-')[-1].split('.')[0]) == simulation_index]
-                    # Extract graphs from single simulation
-                    tg_graphs = self.extract_graphs_from_simulation_files(simulation_files=simulation_files,
-                                                                          simulation_index=s_index+1,
-                                                                          total_simulations=len(simulation_indices),
-                                                                          split=split)
-                    # Add the graphs to the list of tg_graphs
-                    list_of_tg_graphs += tg_graphs
+            # Get attackers mode
+            att_modes = set([file.split('/')[-4].split('_')[0] for file in files])
+            for att_mode in att_modes:
+                att_files = [file for file in files if file.split('/')[-4].split('_')[0] == att_mode]
+                # Iterate over frequencies
+                frequencies = np.unique([file.split('/')[-3].split('x')[0] for file in att_files])
+                # print('frequencies: {}'.format(frequencies))
+                for frequence in frequencies:
+                    freq_files = [file for file in att_files if file.split('/')[-3].split('x')[0] == frequence]
+                    # print('freq_files: {}'.format(freq_files))
+                    # Iterate over number of attackers
+                    n_atts = set([file.split('/')[-2].split('_')[0] for file in freq_files])
+                    for n_att in n_atts:
+                        n_att_files = [file for file in freq_files if file.split('/')[-2].split('_')[0] == n_att]
+                        # Iterating over index of simulations
+                        if index == 0:
+                            split = 'train'
+                            simulation_indices = self.train_sim_ids
+                        elif index == 1:
+                            split = 'validation'
+                            simulation_indices = self.val_sim_ids
+                        elif index == 2:
+                            split = 'test'
+                            simulation_indices = self.test_sim_ids
+                        else:
+                            raise ValueError('Something went wrong with simulation indices')
+                        for s_index, simulation_index in enumerate(simulation_indices):
+                            simulation_files = [file for file in n_att_files if
+                                                int(file.split('-')[-1].split('.')[0]) == simulation_index]
+                            print('simulation files: {}'.format(simulation_files))
+                            # Extract graphs from single simulation
+                            tg_graphs = self.extract_graphs_from_simulation_files(simulation_files=simulation_files,
+                                                                                  simulation_index=s_index + 1,
+                                                                                  total_simulations=len(simulation_indices),
+                                                                                  split=split)
+                            # Add the graphs to the list of tg_graphs
+                            list_of_tg_graphs += tg_graphs
             # print('list_of_tg_graphs: {}'.format(list_of_tg_graphs))
             # Close info line
             print()

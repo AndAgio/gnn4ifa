@@ -11,8 +11,8 @@ class Classifier(torch.nn.Module):
                  n_layers=2,
                  pooling_type='mean',
                  n_classes=2):
-        assert conv_type in ['gcn', 'gat', 'cheb']
-        assert pooling_type in ['mean', 'sum', 'max']
+        assert conv_type in ['gcn', 'gat', 'cheb', 'gin', 'tag', 'sg']
+        assert pooling_type in ['mean', 'sum', 'max', 's2s', 'att']
         self.n_layers = n_layers
         super().__init__()
         # Define layers
@@ -32,6 +32,16 @@ class Classifier(torch.nn.Module):
                 self.convs.append(tg.nn.ChebConv(in_dim,
                                                  out_dim,
                                                  K=3))
+            elif conv_type == 'gin':
+                self.convs.append(tg.nn.GINConv(nn=torch.nn.Linear(in_dim,
+                                                                   out_dim)))
+            elif conv_type == 'tag':
+                self.convs.append(tg.nn.TAGConv(in_dim,
+                                                out_dim,
+                                                K=3))
+            elif conv_type == 'sg':
+                self.convs.append(tg.nn.SGConv(in_dim,
+                                               out_dim))
             else:
                 raise ValueError('Something went wrong with convolution type {}!'.format(conv_type))
         # Define layer for classifying the whole graph
@@ -41,9 +51,16 @@ class Classifier(torch.nn.Module):
             self.global_pooling = tg.nn.global_add_pool
         elif pooling_type == 'max':
             self.global_pooling = tg.nn.global_max_pool
+        elif pooling_type == 's2s':
+            self.global_pooling = tg.nn.Set2Set(in_channels=hidden_dim,
+                                                processing_steps=1,
+                                                num_layers=2)
+        elif pooling_type == 'att':
+            self.global_pooling = tg.nn.GlobalAttention(gate_nn=torch.nn.Linear(hidden_dim, 1),
+                                                        nn=torch.nn.Linear(hidden_dim, 2 * hidden_dim))
         else:
             raise ValueError('Something went wrong with pooling type {}!'.format(pooling_type))
-        self.class_layer = torch.nn.Linear(hidden_dim,
+        self.class_layer = torch.nn.Linear(hidden_dim if pooling_type not in ['s2s', 'att'] else 2 * hidden_dim,
                                            n_classes)
 
     def forward(self, data):

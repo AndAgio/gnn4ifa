@@ -20,6 +20,8 @@ class IfaDataset(InMemoryDataset):
                  pre_transform=None,
                  scenario='existing',
                  topology='small',
+                 attackers='fixed',
+                 n_attackers=None,
                  train_sim_ids=[1, 2, 3],
                  val_sim_ids=[4],
                  test_sim_ids=[5],
@@ -32,6 +34,10 @@ class IfaDataset(InMemoryDataset):
         self.scenario = scenario
         assert topology in ['small', 'dfn']
         self.topology = topology
+        assert attackers in ['fixed', 'variable']
+        self.attackers = attackers
+        # assert n_attackers is not None
+        self.n_attackers = n_attackers
         for train_sim_id in train_sim_ids:
             assert 1 <= train_sim_id <= 5
         for val_sim_id in val_sim_ids:
@@ -142,13 +148,15 @@ class IfaDataset(InMemoryDataset):
     def convert_dataset_to_tg_graphs(self):
         # Import stored dictionary of data
         if self.scenario != 'normal':
-            file_names = glob.glob(os.path.join(self.download_dir, '*', '*.txt'))
+            file_names = glob.glob(os.path.join(self.download_dir, '*', '*', '*', '*.txt'))
         else:
             file_names = glob.glob(os.path.join(self.download_dir, '*.txt'))
         print('file_names: {}'.format(file_names))
         Extractor(data_dir=self.download_folder,
                   scenario=self.scenario,
                   topology=self.topology,
+                  attackers=self.attackers,
+                  n_attackers=self.n_attackers,
                   train_sim_ids=self.train_sim_ids,
                   val_sim_ids=self.val_sim_ids,
                   test_sim_ids=self.test_sim_ids,

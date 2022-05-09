@@ -18,6 +18,8 @@ class Trainer():
                  train_scenario='existing',
                  train_topology='small',
                  frequencies=None,
+                 attackers='fixed',
+                 n_attackers=None,
                  train_sim_ids=[1, 2, 3],
                  val_sim_ids=[4],
                  test_sim_ids=[5],
@@ -40,6 +42,8 @@ class Trainer():
         self.train_scenario = train_scenario
         self.train_topology = train_topology
         self.frequencies = frequencies
+        self.attackers = attackers
+        self.n_attackers = n_attackers
         self.train_sim_ids = train_sim_ids
         self.val_sim_ids = val_sim_ids
         self.test_sim_ids = test_sim_ids
@@ -102,6 +106,8 @@ class Trainer():
                                         transform=transform,
                                         scenario=self.train_scenario if self.mode == 'class' else 'normal',
                                         topology=self.train_topology,
+                                        attackers=self.attackers,
+                                        n_attackers=self.n_attackers,
                                         train_sim_ids=self.train_sim_ids,
                                         val_sim_ids=self.val_sim_ids,
                                         test_sim_ids=self.test_sim_ids,
