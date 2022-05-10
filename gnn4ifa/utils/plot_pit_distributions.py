@@ -167,7 +167,7 @@ def plot_gaussians(pit_sizes, gauss_dict):
     n_topos = len(list(gauss_dict.keys()))
     fig, axs = plt.subplots(1, n_topos, figsize=(15, 5))
     axins = [axs[i].inset_axes([0.5, 0.5, 0.47, 0.47]) for i in range(n_topos)]
-    fig.suptitle('PITs Distributions')
+    # fig.suptitle('PITs Distributions')
     # fig.suptitle('TOPOLOGY: {}'.format(topo_name.upper()))
     topo_index = -1
     for topo_name, topo_dict in pit_sizes.items():
@@ -181,7 +181,7 @@ def plot_gaussians(pit_sizes, gauss_dict):
                     label = 'F={}x, N={}'.format(freq_name, n_att_name) if scenario_name != 'normal' else 'Legitimate'
                     title = r"Topology: {}".format(topo_name.upper())
                     axs[topo_index].title.set_text(title)
-                    x = np.linspace(0, 1200, 100000)
+                    x = np.linspace(0, 1200, 10000)
                     p = norm.pdf(x,
                                  gauss_dict[topo_name][scenario_name][freq_name][n_att_name][0],
                                  gauss_dict[topo_name][scenario_name][freq_name][n_att_name][1])
@@ -216,12 +216,14 @@ def plot_gaussians(pit_sizes, gauss_dict):
     image_name = 'PITS_gauss_{}'.format([topo_name for topo_name, _ in gauss_dict.items()])
     image_path = os.path.join(out_path, image_name)
     plt.tight_layout()
-    plt.savefig(image_path + '.pdf')
+    plt.savefig(image_path + '.pdf', dpi=200)
     plt.savefig(image_path + '.svg')
     plt.savefig(image_path + '.png')
     plt.savefig(image_path + '.jpg')
     plt.show()
     plt.close()
+    # from pdfc.pdf_compressor import compress
+    # compress(image_path + '.pdf', image_path + '_compressed.pdf', power=4)
 
 
 def plot_hists_and_gaussians(pit_sizes, gauss_dict):
