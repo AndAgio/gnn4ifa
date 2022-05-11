@@ -11,9 +11,12 @@ import glob
 import argparse
 import itertools
 from scipy.stats import norm
+import matplotlib
 import matplotlib.pyplot as plt
 import warnings
 
+font = {'size': 18}
+matplotlib.rc('font', **font)
 warnings.filterwarnings("ignore")
 
 
@@ -78,6 +81,7 @@ def plot_pit_distributions(download_folder, scenarios, topologies):
     print('gauss_dict: {}'.format(gauss_dict))
     # Plot distribution
     plot_gaussians(pit_sizes, gauss_dict)
+    plot_gaussians_singles(pit_sizes, gauss_dict)
     plot_hists(pit_sizes, gauss_dict)
     plot_hists_and_gaussians(pit_sizes, gauss_dict)
 
@@ -165,8 +169,9 @@ def plot_hists(pit_sizes, gauss_dict):
 def plot_gaussians(pit_sizes, gauss_dict):
     # Iterate over each topology received in input
     n_topos = len(list(gauss_dict.keys()))
-    fig, axs = plt.subplots(1, n_topos, figsize=(15, 5))
-    axins = [axs[i].inset_axes([0.5, 0.5, 0.47, 0.47]) for i in range(n_topos)]
+    fig, axs = plt.subplots(1, n_topos, figsize=(15, 8))
+    axins_head = [axs[i].inset_axes([0.1, 0.5, 0.4, 0.47]) for i in range(n_topos)]
+    axins_tail = [axs[i].inset_axes([0.55, 0.5, 0.4, 0.47]) for i in range(n_topos)]
     # fig.suptitle('PITs Distributions')
     # fig.suptitle('TOPOLOGY: {}'.format(topo_name.upper()))
     topo_index = -1
@@ -181,34 +186,50 @@ def plot_gaussians(pit_sizes, gauss_dict):
                     label = 'F={}x, N={}'.format(freq_name, n_att_name) if scenario_name != 'normal' else 'Legitimate'
                     title = r"Topology: {}".format(topo_name.upper())
                     axs[topo_index].title.set_text(title)
-                    x = np.linspace(0, 1200, 10000)
+                    x = np.linspace(0, 1200, 5000)
                     p = norm.pdf(x,
                                  gauss_dict[topo_name][scenario_name][freq_name][n_att_name][0],
                                  gauss_dict[topo_name][scenario_name][freq_name][n_att_name][1])
                     axs[topo_index].plot(x, p,
-                                         color=freq_color(freq_name), linewidth=1,
+                                         color=freq_color(freq_name), linewidth=2,
                                          linestyle=att_line(n_att_name),
                                          # marker=att_marker(n_att_name),
                                          markersize=5,
                                          label=label)
                     axs[topo_index].fill_between(x, p, color=freq_color(freq_name), alpha=0.5)
                     # inset axes....
-                    axins[topo_index].plot(x, p,
-                                           color=freq_color(freq_name), linewidth=1,
-                                           linestyle=att_line(n_att_name),
-                                           # marker=att_marker(n_att_name),
-                                           markersize=5)
-                    axins[topo_index].fill_between(x, p, color=freq_color(freq_name), alpha=0.5)
+                    axins_head[topo_index].plot(x, p,
+                                                color=freq_color(freq_name), linewidth=2,
+                                                linestyle=att_line(n_att_name),
+                                                # marker=att_marker(n_att_name),
+                                                markersize=5)
+                    axins_head[topo_index].fill_between(x, p, color=freq_color(freq_name), alpha=0.5)
                     # sub region of the original image
                     x1, x2, y1, y2 = 0, 70, 0, 0.15
-                    axins[topo_index].set_xlim(x1, x2)
-                    axins[topo_index].set_ylim(y1, y2)
-                    axins[topo_index].set_xticklabels([])
-                    axins[topo_index].set_yticklabels([])
-                    axs[topo_index].indicate_inset_zoom(axins[topo_index], edgecolor="black")
+                    axins_head[topo_index].set_xlim(x1, x2)
+                    axins_head[topo_index].set_ylim(y1, y2)
+                    axins_head[topo_index].set_xticklabels([])
+                    axins_head[topo_index].set_yticklabels([])
+                    axs[topo_index].indicate_inset_zoom(axins_head[topo_index], edgecolor="black")
+
+                    # inset axes....
+                    axins_tail[topo_index].plot(x, p,
+                                                color=freq_color(freq_name), linewidth=2,
+                                                linestyle=att_line(n_att_name),
+                                                # marker=att_marker(n_att_name),
+                                                markersize=5)
+                    axins_tail[topo_index].fill_between(x, p, color=freq_color(freq_name), alpha=0.5)
+                    # sub region of the original image
+                    x1, x2, y1, y2 = 800, 1200, 0, 0.005
+                    axins_tail[topo_index].set_xlim(x1, x2)
+                    axins_tail[topo_index].set_ylim(y1, y2)
+                    axins_tail[topo_index].set_xticklabels([])
+                    axins_tail[topo_index].set_yticklabels([])
+                    axs[topo_index].indicate_inset_zoom(axins_tail[topo_index], edgecolor="black")
 
                     axs[topo_index].set_ylim(0, 0.2)
-                    axs[topo_index].legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=4)
+                    axs[topo_index].set_xlim(0, 1200)
+                    axs[topo_index].legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3, prop={'size': 15})
     # Save generated graph image
     out_path = os.path.join(os.getcwd(), '..', 'output', 'plots', 'pits_distributions')
     if not os.path.exists(out_path):
@@ -222,8 +243,81 @@ def plot_gaussians(pit_sizes, gauss_dict):
     plt.savefig(image_path + '.jpg')
     plt.show()
     plt.close()
-    # from pdfc.pdf_compressor import compress
-    # compress(image_path + '.pdf', image_path + '_compressed.pdf', power=4)
+
+
+def plot_gaussians_singles(pit_sizes, gauss_dict):
+    # Iterate over each topology received in input
+    n_topos = len(list(gauss_dict.keys()))
+    # fig.suptitle('PITs Distributions')
+    # fig.suptitle('TOPOLOGY: {}'.format(topo_name.upper()))
+    # Save generated graph image
+    out_path = os.path.join(os.getcwd(), '..', 'output', 'plots', 'pits_distributions')
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    for topo_name, topo_dict in pit_sizes.items():
+        fig, axs = plt.subplots(figsize=(10, 8))
+        axins_head = axs.inset_axes([0.1, 0.5, 0.4, 0.47])
+        axins_tail = axs.inset_axes([0.55, 0.5, 0.4, 0.47])
+        # Iterate over scenarios passed
+        for scenario_name, scenario_dict in topo_dict.items():
+            # Iterate over frequencies
+            for freq_name, freq_dict in scenario_dict.items():
+                # Iterate over number of attackers
+                for n_att_name, data in freq_dict.items():
+                    label = 'F={}x, N={}'.format(freq_name, n_att_name) if scenario_name != 'normal' else 'Legitimate'
+                    title = r"Topology: {}".format(topo_name.upper())
+                    axs.title.set_text(title)
+                    x = np.linspace(0, 1200, 5000)
+                    p = norm.pdf(x,
+                                 gauss_dict[topo_name][scenario_name][freq_name][n_att_name][0],
+                                 gauss_dict[topo_name][scenario_name][freq_name][n_att_name][1])
+                    axs.plot(x, p,
+                             color=freq_color(freq_name), linewidth=2,
+                             linestyle=att_line(n_att_name),
+                             # marker=att_marker(n_att_name),
+                             markersize=5,
+                             label=label)
+                    axs.fill_between(x, p, color=freq_color(freq_name), alpha=0.5)
+                    # inset axes....
+                    axins_head.plot(x, p,
+                                    color=freq_color(freq_name), linewidth=2,
+                                    linestyle=att_line(n_att_name),
+                                    # marker=att_marker(n_att_name),
+                                    markersize=5)
+                    axins_head.fill_between(x, p, color=freq_color(freq_name), alpha=0.5)
+                    # sub region of the original image
+                    x1, x2, y1, y2 = 0, 70, 0, 0.15
+                    axins_head.set_xlim(x1, x2)
+                    axins_head.set_ylim(y1, y2)
+                    axins_head.set_xticklabels([])
+                    axins_head.set_yticklabels([])
+                    axs.indicate_inset_zoom(axins_head, edgecolor="black")
+
+                    # inset axes....
+                    axins_tail.plot(x, p,
+                                    color=freq_color(freq_name), linewidth=2,
+                                    linestyle=att_line(n_att_name),
+                                    # marker=att_marker(n_att_name),
+                                    markersize=5)
+                    axins_tail.fill_between(x, p, color=freq_color(freq_name), alpha=0.5)
+                    # sub region of the original image
+                    x1, x2, y1, y2 = 800, 1200, 0, 0.005
+                    axins_tail.set_xlim(x1, x2)
+                    axins_tail.set_ylim(y1, y2)
+                    axins_tail.set_xticklabels([])
+                    axins_tail.set_yticklabels([])
+                    axs.indicate_inset_zoom(axins_tail, edgecolor="black")
+
+                    axs.set_ylim(0, 0.2)
+                    axs.set_xlim(0, 1200)
+                    axs.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3, prop={'size': 18})
+        image_name = 'PITS_gauss_{}_'.format(topo_name)
+        image_path = os.path.join(out_path, image_name)
+        plt.tight_layout()
+        plt.savefig(image_path + '.pdf', dpi=200)
+        plt.savefig(image_path + '.png')
+        plt.show()
+        plt.close()
 
 
 def plot_hists_and_gaussians(pit_sizes, gauss_dict):
@@ -265,12 +359,12 @@ def plot_hists_and_gaussians(pit_sizes, gauss_dict):
                     axs[0, topo_index].set_ylim(0, 0.2)
                     axs[0, topo_index].legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=4)
                     # Plot the PDF.
-                    x = np.linspace(0, 1200, 100000)
+                    x = np.linspace(0, 1200, 5000)
                     p = norm.pdf(x,
                                  gauss_dict[topo_name][scenario_name][freq_name][n_att_name][0],
                                  gauss_dict[topo_name][scenario_name][freq_name][n_att_name][1])
                     axs[1, topo_index].plot(x, p,
-                                            color=freq_color(freq_name), linewidth=1,
+                                            color=freq_color(freq_name), linewidth=2,
                                             linestyle=att_line(n_att_name),
                                             # marker=att_marker(n_att_name),
                                             markersize=5,
@@ -278,7 +372,7 @@ def plot_hists_and_gaussians(pit_sizes, gauss_dict):
                     axs[1, topo_index].fill_between(x, p, color=freq_color(freq_name), alpha=0.5)
                     # inset axes....
                     axins[1][topo_index].plot(x, p,
-                                              color=freq_color(freq_name), linewidth=1,
+                                              color=freq_color(freq_name), linewidth=2,
                                               linestyle=att_line(n_att_name),
                                               # marker=att_marker(n_att_name),
                                               markersize=5)
@@ -355,10 +449,10 @@ def freq_color(freq):
                    '4': 'black',
                    '8': 'tomato',
                    '16': 'orange',
-                   '32': 'yellow',
+                   '32': 'violet',
                    '64': 'aqua',
                    '128': 'royalblue',
-                   '256': 'violet'}
+                   '256': 'yellow'}
     return freq_colors[freq]
 
 
