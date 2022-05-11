@@ -10,7 +10,7 @@ import torch
 import torch_geometric as tg
 import matplotlib.pyplot as plt
 # Import modules
-from gnn4ifa.utils import timeit, get_scenario_labels_dict
+from gnn4ifa.utils import timeit, get_scenario_labels_dict, get_attacker_type_labels_dict
 
 warnings.filterwarnings("ignore")
 
@@ -305,9 +305,9 @@ class Extractor():
         # Return nodes_features
         return nodes_features
 
-    def insert_labels(self, graph, time, frequency, attackers, n_attackers):
+    def insert_labels(self, graph, time, scenario, frequency, attackers, n_attackers):
         # print('Inserting labels...')
-        if self.scenario != 'normal':
+        if scenario != 'normal':
             # CHeck if time of the current window is before or after the attack start time
             attack_is_on = True if time > self.time_att_start else False
         else:
@@ -315,21 +315,21 @@ class Extractor():
         # If attack is on set graph label to 1 else to 0
         graph.graph['attack_is_on'] = attack_is_on
         # Append graph label corresponding to the simulation considered
-        graph.graph['train_scenario'] = get_scenario_labels_dict()[self.scenario]
+        graph.graph['train_scenario'] = get_scenario_labels_dict()[scenario]
         # Set also time for debugging purposes
         graph.graph['time'] = time
         # Set also attack frequency for debugging purposes
-        if self.scenario != 'normal':
+        if scenario != 'normal':
             graph.graph['frequency'] = int(frequency)
         else:
             graph.graph['frequency'] = -1
         # Set also attack frequency for dataset extraction purposes
-        if self.scenario != 'normal':
-            graph.graph['attacers_type'] = 0 if attackers == 'fixed' else 1
+        if scenario != 'normal':
+            graph.graph['attackers_type'] = get_attacker_type_labels_dict()[attackers]
         else:
-            graph.graph['attacers_type'] = -1
+            graph.graph['attackers_type'] = -1
         # Set also attack frequency for dataset extraction purposes
-        if self.scenario != 'normal':
+        if scenario != 'normal':
             graph.graph['n_attackers'] = int(n_attackers)
         else:
             graph.graph['n_attackers'] = -1
@@ -378,7 +378,17 @@ class Extractor():
         simulation_time = self.get_simulation_time(simulation_files)
         # For each index get the corresponding network traffic window and extract the features in that window
         for time in range(start_time, simulation_time + 1):
-            if self.scenario != 'normal':
+            # print('simulation_files[0].split("/")[-6]: {}'.format(simulation_files[0].split("/")[-6]))
+            # print('simulation_files[0].split("/")[-3]: {}'.format(simulation_files[0].split("/")[-3]))
+            if simulation_files[0].split("/")[-3] == 'normal':
+                scenario = 'normal'
+            elif simulation_files[0].split("/")[-6] == 'IFA_4_existing':
+                scenario = 'existing'
+            elif simulation_files[0].split("/")[-6] == 'IFA_4_non_existing':
+                scenario = 'non_existing'
+            else:
+                raise ValueError('Something wrong with scenario extraction from path!')
+            if scenario != 'normal':
                 # Print info
                 frequency = simulation_files[0].split("/")[-3].split('x')[0]
                 attackers = simulation_files[0].split("/")[-4].split('_')[0]
@@ -391,7 +401,7 @@ class Extractor():
                     " Frequency: {} |"
                     " Simulation progress: {}/{} |"
                     " Time steps progress: {}/{} |".format(split,
-                                                           self.scenario,
+                                                           scenario,
                                                            self.topology,
                                                            attackers,
                                                            n_attackers,
@@ -403,21 +413,23 @@ class Extractor():
                     end="\r")
             else:
                 frequency = None
+                attackers = None
+                n_attackers = None
                 print(
                     "\r| Extracting {} split... |"
                     " Scenario: {} | Topology: {} |"
                     " Simulation progress: {}/{} |"
                     " Time steps progress: {}/{} |".format(split,
-                                                           self.scenario,
+                                                           scenario,
                                                            self.topology,
                                                            simulation_index,
                                                            total_simulations,
                                                            time,
                                                            simulation_time),
                     end="\r")
-            if self.scenario == 'existing' and self.topology == 'dfn' and frequency == '32' \
-                    and split == 'train' and simulation_index == 1 and time >= 299:
-                continue
+            # if self.scenario == 'existing' and self.topology == 'dfn' and frequency == '32' \
+            #         and split == 'train' and simulation_index == 1 and time >= 299:
+            #     continue
             # print(f'data: {data}')
             # Get graph of the network during the current time window
             graph = self.get_graph_structure(topology_lines_dataframe=data['topology'])
@@ -451,6 +463,7 @@ class Extractor():
             # Add labels to the graph as graph and nodes attributes
             graph = self.insert_labels(graph,
                                        time=time,
+                                       scenario=scenario,
                                        frequency=frequency,
                                        attackers=attackers,
                                        n_attackers=n_attackers)

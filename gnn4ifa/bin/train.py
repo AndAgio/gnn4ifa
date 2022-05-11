@@ -8,7 +8,7 @@ from gnn4ifa.data import IfaDataset
 from gnn4ifa.transforms import NormalizeFeatures, RandomNodeMasking
 from gnn4ifa.models import Classifier, AutoEncoder
 from gnn4ifa.metrics import Accuracy, F1Score, MSE, MAE
-from gnn4ifa.utils import get_data_loader
+from gnn4ifa.utils import get_data_loader, get_labels_scenario_dict, get_labels_attacker_type_dict
 
 
 class Trainer():
@@ -104,7 +104,7 @@ class Trainer():
         self.train_dataset = IfaDataset(root=self.dataset_folder,
                                         download_folder=self.download_dataset_folder,
                                         transform=transform,
-                                        scenario=self.train_scenario if self.mode == 'class' else 'normal',
+                                        scenario=self.train_scenario if self.mode == 'class' else 'all' if self.differential else 'normal',
                                         topology=self.train_topology,
                                         attackers=self.attackers,
                                         n_attackers=self.n_attackers,
@@ -117,15 +117,21 @@ class Trainer():
                                         split='train')
         print('self.train_dataset[0]: {}'.format(self.train_dataset[0]))
         print('Number of training examples: {}'.format(len(self.train_dataset)))
-        self.train_loader = get_data_loader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            shuffle=True)
+        if self.differential:
+            self.train_loader = get_data_loader(
+                self.train_dataset.get_all_legitimate_data(frequencies=self.frequencies),
+                batch_size=self.batch_size,
+                shuffle=True)
+        else:
+            self.train_loader = get_data_loader(
+                self.train_dataset,
+                batch_size=self.batch_size,
+                shuffle=True)
         # Validation
         self.val_dataset = IfaDataset(root=self.dataset_folder,
                                       download_folder=self.download_dataset_folder,
                                       transform=transform,
-                                      scenario=self.train_scenario if self.mode == 'class' else 'normal',
+                                      scenario=self.train_scenario if self.mode == 'class' else 'all' if self.differential else 'normal',
                                       topology=self.train_topology,
                                       train_sim_ids=self.train_sim_ids,
                                       val_sim_ids=self.val_sim_ids,
@@ -135,10 +141,16 @@ class Trainer():
                                       differential=self.differential,
                                       split='val')
         print('Number of validation examples: {}'.format(len(self.val_dataset)))
-        self.val_loader = get_data_loader(
-            self.val_dataset,
-            batch_size=self.batch_size,
-            shuffle=True)
+        if self.differential:
+            self.val_loader = get_data_loader(
+                self.val_dataset.get_all_legitimate_data(frequencies=self.frequencies),
+                batch_size=self.batch_size,
+                shuffle=True)
+        else:
+            self.val_loader = get_data_loader(
+                self.val_dataset,
+                batch_size=self.batch_size,
+                shuffle=True)
         # Test
         self.test_dataset = IfaDataset(root=self.dataset_folder,
                                        download_folder=self.download_dataset_folder,
@@ -330,7 +342,24 @@ class Trainer():
         if self.mode == 'class':
             y_true = data.attack_is_on.long()
         elif self.mode == 'anomaly':
-
+            # Print for debugging purposes
+            scenarios = data.train_scenario.numpy()
+            frequencies = data.frequency.numpy()
+            attackers_types = data.attackers_type.numpy()
+            n_attackerss = data.n_attackers.numpy()
+            print('data.attack_is_on.shape[0]: {}'.format(data.attack_is_on.shape[0]))
+            for batch_index in range(data.attack_is_on.shape[0]):
+                scenario = get_labels_scenario_dict()[scenarios[batch_index]]
+                frequency = frequencies[batch_index]
+                attackers_type = get_labels_attacker_type_dict()[attackers_types[batch_index]]
+                n_attackers = n_attackerss[batch_index]
+                print('Train sample taken from simulation with scenario={}, '
+                      'attackers_type={}, frequency={}, n_attackers={}'.format(scenario,
+                                                                               attackers_type,
+                                                                               frequency,
+                                                                               n_attackers))
+            ones_in_labels = data.attack_is_on.long().nonzero().size(0)
+            assert ones_in_labels == 0, 'data.attack_is_on.long() = {}'.format(data.attack_is_on.long())
             if not self.masking:
                 # Get labels from data
                 y_true = data.x.float()
@@ -497,17 +526,29 @@ class Trainer():
         simulations_exact_alarms = []
         # Iterate over all simulations belonging to the test set
         for sim_index, simulation in self.test_loader.items():
+            # print('simulation: {}'.format(simulation))
+            # print('simulation[0]: {}'.format(simulation[0]))
+            scenario = get_labels_scenario_dict()[simulation[0].train_scenario.item()]
+            frequency = simulation[0].frequency.item()
+            attackers_type = get_labels_attacker_type_dict()[simulation[0].attackers_type.item()]
+            n_attackers = simulation[0].n_attackers.item()
+            print('Testing on simulation with scenario={}, '
+                  'attackers_type={}, frequency={}, n_attackers={}'.format(scenario,
+                                                                           attackers_type,
+                                                                           frequency,
+                                                                           n_attackers))
             # Iterate over each sample of the simulation
             predictions = []
             labels = []
             for sample_index, sample in enumerate(simulation):
                 sample = sample.to(self.device)
-                prediction, label = self.test_step(sample, metrics=None, threshold=threshold, threshold_metric=threshold_metric)
+                prediction, label = self.test_step(sample, metrics=None,
+                                                   threshold=threshold, threshold_metric=threshold_metric)
                 # Append prediction and label to the list containing every prediction and label of the simulation
                 predictions.append(prediction.numpy().item())
                 labels.append(label.numpy().item())
-            # print('predictions: {}'.format(predictions))
-            # print('labels: {}'.format(labels))
+            print('predictions: {}'.format(predictions))
+            print('labels: {}'.format(labels))
             # Get number of false alarms, true alarms and the behaviour at the
             # starting point of the attack (exact alarm) for the simulation
             false_alarms = 0
@@ -523,6 +564,9 @@ class Trainer():
                 if labels[index] == 1 and labels[index - 1] == 0:
                     if predictions[index] == 1 and labels[index] == 1:
                         exact_alarm = 1
+            print('False Alarms: {}'.format(false_alarms))
+            print('True Alarms: {}'.format(true_alarms))
+            print('Exact Alarms: {}'.format(exact_alarm))
             # Append the values to the list of values defining performances over simulations
             simulations_false_alarms.append(false_alarms)
             simulations_true_alarms.append(true_alarms)

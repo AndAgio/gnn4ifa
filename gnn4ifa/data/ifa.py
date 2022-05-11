@@ -30,7 +30,7 @@ class IfaDataset(InMemoryDataset):
                  differential=False,
                  split='train'):
         self.download_folder = download_folder
-        assert scenario in ['existing', 'non_existing', 'normal']
+        assert scenario in ['existing', 'non_existing', 'normal', 'all']
         self.scenario = scenario
         assert topology in ['small', 'dfn']
         self.topology = topology
@@ -93,6 +93,8 @@ class IfaDataset(InMemoryDataset):
             frequencies = ['16x', '32x', '64x', '128x', '256x']
         elif self.scenario == 'normal':
             frequencies = None
+        elif self.scenario == 'all':
+            frequencies = None
         else:
             raise ValueError('Something wrong with train_scenario {} and train_topology {}'.format(self.scenario,
                                                                                                    self.topology))
@@ -125,29 +127,38 @@ class IfaDataset(InMemoryDataset):
 
     def download(self, force=False):
         # Download dataset only if the download folder is not found
-        if not os.path.exists(self.download_dir) or force:
-            raise NotImplementedError('Not yet moved dataset to shared drive folder')
-            # Download tfrecord file if not found...
-            print('Downloading dataset file, this will take a while...')
-            radar_online = '1uJ9HTlduxTfSnz91-n8_8-fleUgkUPWB'
-            tmp_download_folder = os.path.join(os.getcwd(), 'dwn')
-            if not os.path.exists(tmp_download_folder):
-                os.makedirs(tmp_download_folder)
-            download_file_from_google_drive(radar_online, os.path.join(tmp_download_folder, 'RADAR.zip'))
-            # Extract zip files from downloaded dataset
-            zf = zipfile.ZipFile(os.path.join(tmp_download_folder, 'RADAR.zip'), 'r')
-            print('Unzipping dataset...')
-            zf.extractall(tmp_download_folder)
-            # Make order into the project folder moving extracted dataset into home and removing temporary download folder
-            print('Moving dataset to clean repo...')
-            shutil.move(os.path.join(tmp_download_folder, 'RADAR'), os.path.join(os.getcwd(), self.download_folder))
-            shutil.rmtree(tmp_download_folder)
-            # Run _preprocess to activate the extractor which converts the dataset files into tg_graphs
-            self.convert_dataset_to_tg_graphs()
+        # print('self.download_dir: {}'.format(self.download_dir))
+        # if not os.path.exists(self.download_dir) or force:
+        #     raise NotImplementedError('Not yet moved dataset to shared drive folder')
+        #     # Download tfrecord file if not found...
+        #     print('Downloading dataset file, this will take a while...')
+        #     radar_online = '1uJ9HTlduxTfSnz91-n8_8-fleUgkUPWB'
+        #     tmp_download_folder = os.path.join(os.getcwd(), 'dwn')
+        #     if not os.path.exists(tmp_download_folder):
+        #         os.makedirs(tmp_download_folder)
+        #     download_file_from_google_drive(radar_online, os.path.join(tmp_download_folder, 'RADAR.zip'))
+        #     # Extract zip files from downloaded dataset
+        #     zf = zipfile.ZipFile(os.path.join(tmp_download_folder, 'RADAR.zip'), 'r')
+        #     print('Unzipping dataset...')
+        #     zf.extractall(tmp_download_folder)
+        #     # Make order into the project folder moving extracted dataset into home and removing temporary download folder
+        #     print('Moving dataset to clean repo...')
+        #     shutil.move(os.path.join(tmp_download_folder, 'RADAR'), os.path.join(os.getcwd(), self.download_folder))
+        #     shutil.rmtree(tmp_download_folder)
+        #     # Run _preprocess to activate the extractor which converts the dataset files into tg_graphs
+        #     self.convert_dataset_to_tg_graphs()
+        return
 
     def convert_dataset_to_tg_graphs(self):
         # Import stored dictionary of data
-        if self.scenario != 'normal':
+        if self.scenario == 'all':
+            dwn_dir = os.path.join(self.download_folder, 'IFA_4_existing', '{}_topology'.format(self.topology) \
+                                    if self.topology != 'dfn' else '{}_topology'.format(self.topology.upper()))
+            file_names = glob.glob(os.path.join(dwn_dir, '*', '*', '*', '*.txt'))
+            dwn_dir = os.path.join(self.download_folder, 'normal', '{}_topology'.format(self.topology) \
+                                    if self.topology != 'dfn' else '{}_topology'.format(self.topology.upper()))
+            file_names += glob.glob(os.path.join(dwn_dir, '*.txt'))
+        elif self.scenario != 'normal':
             file_names = glob.glob(os.path.join(self.download_dir, '*', '*', '*', '*.txt'))
         else:
             file_names = glob.glob(os.path.join(self.download_dir, '*.txt'))
