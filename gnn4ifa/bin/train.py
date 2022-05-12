@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+import pandas as pd
 import torch
 import torch_geometric as tg
 # Import my modules
@@ -8,7 +9,8 @@ from gnn4ifa.data import IfaDataset
 from gnn4ifa.transforms import NormalizeFeatures, RandomNodeMasking
 from gnn4ifa.models import Classifier, AutoEncoder
 from gnn4ifa.metrics import Accuracy, F1Score, MSE, MAE
-from gnn4ifa.utils import get_data_loader, get_labels_scenario_dict, get_labels_attacker_type_dict
+from gnn4ifa.utils import get_data_loader, get_labels_scenario_dict, get_labels_attacker_type_dict, \
+    get_labels_topology_dict
 
 
 class Trainer():
@@ -119,7 +121,9 @@ class Trainer():
         print('Number of training examples: {}'.format(len(self.train_dataset)))
         if self.differential:
             self.train_loader = get_data_loader(
-                self.train_dataset.get_all_legitimate_data(frequencies=self.frequencies),
+                # self.train_dataset.get_all_legitimate_data(frequencies=self.frequencies),
+                # self.train_dataset.get_only_normal_data(frequencies=self.frequencies),
+                self.train_dataset.get_randomly_sampled_legitimate_data(frequencies=self.frequencies),
                 batch_size=self.batch_size,
                 shuffle=True)
         else:
@@ -343,21 +347,29 @@ class Trainer():
             y_true = data.attack_is_on.long()
         elif self.mode == 'anomaly':
             # Print for debugging purposes
+            topologies = data.topology.numpy()
             scenarios = data.train_scenario.numpy()
             frequencies = data.frequency.numpy()
             attackers_types = data.attackers_type.numpy()
             n_attackerss = data.n_attackers.numpy()
+            attack_is_ons = data.attack_is_on.long().numpy()
             print('data.attack_is_on.shape[0]: {}'.format(data.attack_is_on.shape[0]))
             for batch_index in range(data.attack_is_on.shape[0]):
+                topology = get_labels_topology_dict()[topologies[batch_index]]
                 scenario = get_labels_scenario_dict()[scenarios[batch_index]]
                 frequency = frequencies[batch_index]
                 attackers_type = get_labels_attacker_type_dict()[attackers_types[batch_index]]
                 n_attackers = n_attackerss[batch_index]
-                print('Train sample taken from simulation with scenario={}, '
-                      'attackers_type={}, frequency={}, n_attackers={}'.format(scenario,
-                                                                               attackers_type,
-                                                                               frequency,
-                                                                               n_attackers))
+                attack_is_on = attack_is_ons[batch_index]
+                print('Train sample taken from simulation with'
+                      'topology={}, scenario={}, '
+                      'attackers_type={}, frequency={}, '
+                      'n_attackers={}, attack_is_on={}'.format(topology,
+                                                               scenario,
+                                                               attackers_type,
+                                                               frequency,
+                                                               n_attackers,
+                                                               attack_is_on))
             ones_in_labels = data.attack_is_on.long().nonzero().size(0)
             assert ones_in_labels == 0, 'data.attack_is_on.long() = {}'.format(data.attack_is_on.long())
             if not self.masking:
@@ -524,16 +536,19 @@ class Trainer():
         simulations_false_alarms = []
         simulations_true_alarms = []
         simulations_exact_alarms = []
+        metrics_dict = self.get_empty_metrics_dict()
         # Iterate over all simulations belonging to the test set
         for sim_index, simulation in self.test_loader.items():
             # print('simulation: {}'.format(simulation))
             # print('simulation[0]: {}'.format(simulation[0]))
+            topology = get_labels_topology_dict()[simulation[0].topology.item()]
             scenario = get_labels_scenario_dict()[simulation[0].train_scenario.item()]
             frequency = simulation[0].frequency.item()
             attackers_type = get_labels_attacker_type_dict()[simulation[0].attackers_type.item()]
             n_attackers = simulation[0].n_attackers.item()
-            print('Testing on simulation with scenario={}, '
-                  'attackers_type={}, frequency={}, n_attackers={}'.format(scenario,
+            print('Testing on simulation with topology={}, scenario={}, '
+                  'attackers_type={}, frequency={}, n_attackers={}'.format(topology,
+                                                                           scenario,
                                                                            attackers_type,
                                                                            frequency,
                                                                            n_attackers))
@@ -567,6 +582,11 @@ class Trainer():
             print('False Alarms: {}'.format(false_alarms))
             print('True Alarms: {}'.format(true_alarms))
             print('Exact Alarms: {}'.format(exact_alarm))
+            metrics_dict[topology][scenario][frequency][attackers_type][n_attackers]['tps'].append(
+                1 if true_alarms >= 1 else 0)
+            metrics_dict[topology][scenario][frequency][attackers_type][n_attackers]['fps'].append(false_alarms)
+            # print('TPR={}'.format(sum(i>=1 for i in true_alarms)/len(true_alarms)))
+            # print('FPR={}'.format(sum(false_alarms)/len(false_alarms)))
             # Append the values to the list of values defining performances over simulations
             simulations_false_alarms.append(false_alarms)
             simulations_true_alarms.append(true_alarms)
@@ -575,6 +595,81 @@ class Trainer():
         print('True alarms over testing simulations: {}'.format(simulations_true_alarms))
         print('False alarms over testing simulations: {}'.format(simulations_false_alarms))
         print('Exact alarm over testing simulations: {}'.format(simulations_exact_alarms))
+        print('Overall TPR = {:.3f}%'.format(100 * sum(i >= 1 for i in simulations_true_alarms) /
+                                             len(simulations_true_alarms)))
+        print('Overall FPR = {:.3f}%'.format(100 * sum(simulations_false_alarms) /
+                                             (len(simulations_false_alarms) * self.time_att_start)))
+        metrics_dict = self.format_metrics_dict(metrics_dict)
+        print('metrics_dict: {}'.format(metrics_dict))
+        interesting_setups_metrics_dict = {freq_name: {n_att: data}
+                                           for topo_name, topo_dict in metrics_dict.items()
+                                           for scenario_name, scenario_dict in topo_dict.items()
+                                           for freq_name, freq_dict in scenario_dict.items()
+                                           for att_type_name, att_type_dict in freq_dict.items()
+                                           for n_att, data in att_type_dict.items()
+                                           if (topo_name == self.train_topology
+                                               and scenario_name == 'existing'
+                                               and att_type_name == 'variable')}
+        print('interesting_setups_metrics_dict: {}'.format(interesting_setups_metrics_dict))
+        print('interesting_setups_metrics_dict dataframe: {}'.format(pd.DataFrame(interesting_setups_metrics_dict)))
+        # for freq_name, freq_dict in interesting_setups_metrics_dict.items():
+        #     for n_att_name, data in freq_dict.items():
+        #         print("{:<10} {:<10} {:.3f},{:.3f}".format(freq_name, n_att_name, data['tps'], data['fps']))
+
+    def format_metrics_dict(self, metrics_dict):
+        # Iterate over topologies
+        for topo_name, topo_dict in metrics_dict.items():
+            # Iterate over scenarios
+            for scenario_name, scenario_dict in topo_dict.items():
+                # Iterate over frequencies
+                for freq_name, freq_dict in scenario_dict.items():
+                    # Iterate over attacker types
+                    for att_type_name, att_type_dict in freq_dict.items():
+                        # Iterate over number of attackers
+                        for n_att_name, data in att_type_dict.items():
+                            # Normalize data
+                            data['tps'] = 100*sum(data['tps'])/len(data['tps'])
+                            data['fps'] = 100*sum(data['fps'])/(self.time_att_start*len(data['fps']))
+        return metrics_dict
+
+    @torch.no_grad()
+    def get_empty_metrics_dict(self):
+        empty_dict = {}
+        for sim_index, simulation in self.test_loader.items():
+            topology = get_labels_topology_dict()[simulation[0].topology.item()]
+            scenario = get_labels_scenario_dict()[simulation[0].train_scenario.item()]
+            freq = simulation[0].frequency.item()
+            attack_type = get_labels_attacker_type_dict()[simulation[0].attackers_type.item()]
+            n_att = simulation[0].n_attackers.item()
+            try:
+                empty_dict[topology]
+            except KeyError:
+                empty_dict[topology] = {}
+            try:
+                empty_dict[topology][scenario]
+            except KeyError:
+                empty_dict[topology][scenario] = {}
+            try:
+                empty_dict[topology][scenario][freq]
+            except KeyError:
+                empty_dict[topology][scenario][freq] = {}
+            try:
+                empty_dict[topology][scenario][freq][attack_type]
+            except KeyError:
+                empty_dict[topology][scenario][freq][attack_type] = {}
+            try:
+                empty_dict[topology][scenario][freq][attack_type][n_att]
+            except KeyError:
+                empty_dict[topology][scenario][freq][attack_type][n_att] = {}
+            try:
+                empty_dict[topology][scenario][freq][attack_type][n_att]['tps']
+            except KeyError:
+                empty_dict[topology][scenario][freq][attack_type][n_att]['tps'] = []
+            try:
+                empty_dict[topology][scenario][freq][attack_type][n_att]['fps']
+            except KeyError:
+                empty_dict[topology][scenario][freq][attack_type][n_att]['fps'] = []
+        return empty_dict
 
     @torch.no_grad()
     def get_threshold(self, metric='mae'):
