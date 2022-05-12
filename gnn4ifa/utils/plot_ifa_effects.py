@@ -22,9 +22,9 @@ warnings.filterwarnings("ignore")
 
 def plot_ifa_effects(download_folder, scenarios, topologies):
     # Define empty dictionary for pit sizes of topologies and scenario
-    pit_sizes = get_empty_dict_from_file_names(download_folder, scenarios)
-    satisfaction_rates = get_empty_dict_from_file_names(download_folder, scenarios)
-    print('pit_sizes: {}'.format(pit_sizes))
+    pit_sizes = get_empty_dict_from_file_names(download_folder, scenarios, topologies)
+    satisfaction_rates = get_empty_dict_from_file_names(download_folder, scenarios, topologies)
+    print('Extracting IFA effects...')
     # Iterate over each topology received in input
     for topology in topologies:
         # Iterate over each scenario passed as input
@@ -38,6 +38,7 @@ def plot_ifa_effects(download_folder, scenarios, topologies):
             # Get files list containing files of current scenario
             files_list = get_files_list(directory=path, scenario=scenario)
             # If the scenario is not the legitimate one then we need to plot one distribution for each frequency
+            # print('scenario: {}'.format(scenario))
             if scenario != 'normal':
                 # Iterate over frequencies
                 frequencies = np.unique([file.split('/')[-3].split('x')[0] for file in files_list])
@@ -59,6 +60,7 @@ def plot_ifa_effects(download_folder, scenarios, topologies):
                         # Append distributions to dictionary for plotting
                         satisfaction_rates[topology][scenario][frequence][n_att] = srs
             else:
+                # print('files_list: {}'.format(files_list))
                 # Get pit distributions
                 pits = extract_pits_from_simulation_files(simulation_files=files_list,
                                                           simulation_time=300)
@@ -69,14 +71,18 @@ def plot_ifa_effects(download_folder, scenarios, topologies):
                                                         simulation_time=300)
                 # Append distributions to dictionary for plotting
                 satisfaction_rates[topology][scenario]['1']['0'] = srs
-            print('pit_sizes: {}'.format(pit_sizes))
-            print('satisfaction_rates: {}'.format(satisfaction_rates))
+                # print('pits: {}'.format(pits))
+                # print('srs: {}'.format(srs))
+                # raise RuntimeError()
+            # print('pit_sizes: {}'.format(pit_sizes))
+            # print('satisfaction_rates: {}'.format(satisfaction_rates))
     # Plot distribution
     plot_pit_sizes(pit_sizes)
     plot_satisfaction_rate(satisfaction_rates)
 
 
 def plot_pit_sizes(pit_sizes):
+    print('Plotting PIT sizes...')
     # Save generated graph image
     out_path = os.path.join(os.getcwd(), '..', 'output', 'plots', 'ifa_effects')
     # Iterate over each topology received in input
@@ -89,24 +95,26 @@ def plot_pit_sizes(pit_sizes):
             for freq_name, freq_dict in scenario_dict.items():
                 # Iterate over number of attackers
                 for n_att_name, data in freq_dict.items():
-                    print('topology: {}, scenario: {}, frequency: {}, n_att: {}'.format(topo_name,
-                                                                                        scenario_name,
-                                                                                        freq_name,
-                                                                                        n_att_name))
-                    print('data: {}'.format(data))
+                    # print('topology: {}, scenario: {}, frequency: {}, n_att: {}'.format(topo_name,
+                    #                                                                     scenario_name,
+                    #                                                                     freq_name,
+                    #                                                                     n_att_name))
+                    # print('data: {}'.format(data))
                     fig, axs = plt.subplots(figsize=(15, 8))
                     colormap = get_cmap(len(list(data.keys())))
                     router_index = 0
                     for router_name, pit_size in data.items():
-                        print('router_name: {}'.format(router_name))
-                        print('pit_size: {}'.format(pit_size))
+                        # print('router_name: {}'.format(router_name))
+                        # print('pit_size: {}'.format(pit_size))
                         x = np.linspace(0, len(pit_size), len(pit_size))
                         axs.plot(x, pit_size,
                                  color=colormap(router_index), linewidth=2,
                                  label=router_name)
                         router_index += 1
                     axs.set_ylim(0, 1200)
+                    axs.set_ylabel('PIT Size')
                     axs.set_xlim(0, 300)
+                    axs.set_xlabel('Time (s)')
                     axs.legend(loc='best', ncol=3, prop={'size': 15})
                     # Store plot
                     image_name = 'PITS.pdf'
@@ -120,6 +128,7 @@ def plot_pit_sizes(pit_sizes):
 
 
 def plot_satisfaction_rate(pit_sizes):
+    print('Plotting satisfaction rates...')
     # Save generated graph image
     out_path = os.path.join(os.getcwd(), '..', 'output', 'plots', 'ifa_effects')
     # Iterate over each topology received in input
@@ -132,24 +141,26 @@ def plot_satisfaction_rate(pit_sizes):
             for freq_name, freq_dict in scenario_dict.items():
                 # Iterate over number of attackers
                 for n_att_name, data in freq_dict.items():
-                    print('topology: {}, scenario: {}, frequency: {}, n_att: {}'.format(topo_name,
-                                                                                        scenario_name,
-                                                                                        freq_name,
-                                                                                        n_att_name))
-                    print('data: {}'.format(data))
+                    # print('topology: {}, scenario: {}, frequency: {}, n_att: {}'.format(topo_name,
+                    #                                                                     scenario_name,
+                    #                                                                     freq_name,
+                    #                                                                     n_att_name))
+                    # print('data: {}'.format(data))
                     fig, axs = plt.subplots(figsize=(15, 8))
                     colormap = get_cmap(len(list(data.keys())))
-                    router_index = 0
+                    consumer_index = 0
                     for consumer_name, satisfaction_rates in data.items():
-                        print('consumer_name: {}'.format(consumer_name))
-                        print('satisfaction_rates: {}'.format(satisfaction_rates))
+                        # print('consumer_name: {}'.format(consumer_name))
+                        # print('satisfaction_rates: {}'.format(satisfaction_rates))
                         x = np.linspace(0, len(satisfaction_rates), len(satisfaction_rates))
-                        axs.plot(x, satisfaction_rates*100,
-                                 color=colormap(router_index), linewidth=2,
-                                 label=consumer_name)
-                        router_index += 1
+                        axs.plot(x, [sr*100 for sr in satisfaction_rates],
+                                 color=colormap(consumer_index), linewidth=2,
+                                 label='Cons{}'.format(consumer_index+1))
+                        consumer_index += 1
                     axs.set_ylim(0, 100)
+                    axs.set_ylabel('Satisfaction Rate (%)')
                     axs.set_xlim(0, 300)
+                    axs.set_xlabel('Time (s)')
                     axs.legend(loc='best', ncol=3, prop={'size': 15})
                     # Store plot
                     image_name = 'Satisfaction rates.pdf'
@@ -162,11 +173,11 @@ def plot_satisfaction_rate(pit_sizes):
                     plt.close()
 
 
-def get_cmap(n, name='hsv'):
+def get_cmap(n, name='tab20'):
     return plt.cm.get_cmap(name, n)
 
 
-def get_empty_dict_from_file_names(download_folder, scenarios):
+def get_empty_dict_from_file_names(download_folder, scenarios, topologies):
     file_list = []
     for scenario in scenarios:
         if scenario == 'normal':
@@ -178,12 +189,15 @@ def get_empty_dict_from_file_names(download_folder, scenarios):
                              '*.txt'))
     # print('file_list: {}'.format(file_list))
     empty_dict = {}
-    combinations = []
-    topologies = []
+    # topologies = []
     for file in file_list:
         scenario = file.split('/')[-6].split('_')[-1].lower()
+        if scenario not in scenarios:
+            continue
         topology = file.split('/')[-5].split('_')[0].lower()
-        topologies.append(topology)
+        if topology not in topologies:
+            continue
+        # topologies.append(topology)
         freq = file.split('/')[-3].split('x')[0]
         n_att = file.split('/')[-2].split('_')[0]
         # print('topology: {}, scenario: {}, freq: {}, n_att: {}'.format(topology, scenario, freq, n_att))
@@ -209,7 +223,7 @@ def get_empty_dict_from_file_names(download_folder, scenarios):
     # combinations = list(set(combinations))
     # combinations.append(('1', '0'))
     # print(f'combinations: {combinations}')
-    topologies = list(set(topologies))
+    # topologies = list(set(topologies))
     for topology in topologies:
         try:
             empty_dict[topology]['normal']
@@ -309,7 +323,7 @@ def extract_srs_from_simulation_files(simulation_files, simulation_time=300):
     #  Iterate over all routers
     for consumer_name in consumers_names:
         srs[consumer_name] = get_satisfaction_rates(data, consumer_name, simulation_time)
-    print('srs: {}'.format(srs))
+    # print('srs: {}'.format(srs))
     return srs
 
 
@@ -348,7 +362,10 @@ def get_satisfaction_rate(data, node_name):
     # Get OutInterests of router at hand
     out_interests = rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'OutInterests')]['PacketRaw']
     out_interests = sum(i for i in out_interests)
-    return min(in_satisfied_interests/max(out_interests, 1), 1)
+    if out_interests == 0 and in_satisfied_interests == 0:
+        return 1
+    else:
+        return min(in_satisfied_interests/max(out_interests, 1), 1)
 
 
 def get_pit_sizes(data, node_name, simulation_time):
@@ -496,7 +513,7 @@ def main():
     # Define scenarios for which the distribution plot is required
     download_folder = 'ifa_data'
     # Define scenarios for which the distribution plot is required
-    scenario = ['existing']
+    scenario = ['normal', 'existing']
     # Define scenarios for which the distribution plot is required
     topologies = ['small', 'dfn']
     # Run distribution plotter
