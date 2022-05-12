@@ -10,7 +10,7 @@ import torch
 import torch_geometric as tg
 import matplotlib.pyplot as plt
 # Import modules
-from gnn4ifa.utils import timeit, get_scenario_labels_dict, get_attacker_type_labels_dict
+from gnn4ifa.utils import timeit, get_scenario_labels_dict, get_attacker_type_labels_dict, get_topology_labels_dict
 
 warnings.filterwarnings("ignore")
 
@@ -305,13 +305,14 @@ class Extractor():
         # Return nodes_features
         return nodes_features
 
-    def insert_labels(self, graph, time, scenario, frequency, attackers, n_attackers):
+    def insert_labels(self, graph, time, topology, scenario, frequency, attackers, n_attackers):
         # print('Inserting labels...')
         if scenario != 'normal':
             # CHeck if time of the current window is before or after the attack start time
             attack_is_on = True if time > self.time_att_start else False
         else:
             attack_is_on = False
+        graph.graph['topology'] = get_topology_labels_dict()[topology]
         # If attack is on set graph label to 1 else to 0
         graph.graph['attack_is_on'] = attack_is_on
         # Append graph label corresponding to the simulation considered
@@ -463,6 +464,7 @@ class Extractor():
             # Add labels to the graph as graph and nodes attributes
             graph = self.insert_labels(graph,
                                        time=time,
+                                       topology=self.topology,
                                        scenario=scenario,
                                        frequency=frequency,
                                        attackers=attackers,

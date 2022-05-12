@@ -1,3 +1,4 @@
+import math
 import os
 import random
 import shutil
@@ -292,6 +293,26 @@ class IfaDataset(InMemoryDataset):
             print('data: {}'.format(data))
             break
         data = [data for data in datas if data['attack_is_on'] == 0]
+        print('Number of filtered graphs: {}'.format(len(data)))
+        return data
+
+    def get_only_normal_data(self, frequencies=None):
+        # Return all graphs where no attack is active
+        # Gather all graphs over all scenarios and get only those graphs that have attack_is_on==False
+        datas = self.get_all_data(frequencies=frequencies)
+        print('Number of non-filtered graphs: {}'.format(len(datas)))
+        for data in datas:
+            print('data: {}'.format(data))
+            break
+        data = [data for data in datas if data['train_scenario'] == 0]
+        print('Number of filtered graphs: {}'.format(len(data)))
+        return data
+
+    def get_randomly_sampled_legitimate_data(self, frequencies=None, p=0.3):
+        normal_data = self.get_only_normal_data(frequencies=frequencies)
+        # Gather all graphs over all scenarios and get only those graphs that have attack_is_on==False
+        all_legitime_data = self.get_all_legitimate_data(frequencies=frequencies)
+        data = normal_data + random.sample(all_legitime_data, math.floor(p*len(all_legitime_data)))
         print('Number of filtered graphs: {}'.format(len(data)))
         return data
 
