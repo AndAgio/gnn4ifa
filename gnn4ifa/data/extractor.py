@@ -143,7 +143,7 @@ class Extractor():
             else:
                 lines_to_keep.append('\t'.join(line.split())+'\n')
         lines_to_keep = reversed(lines_to_keep)
-        print('lines_to_keep: {}'.format(lines_to_keep))
+        # print('lines_to_keep: {}'.format(lines_to_keep))
         return lines_to_keep
 
     @staticmethod
@@ -357,12 +357,12 @@ class Extractor():
         drop_trace_file = [file for file in simulation_files if 'drop-trace' in file][0]
         last_line_of_drop_trace_file = pd.read_csv(drop_trace_file, sep='\t', index_col=False).iloc[-1]
         simulation_time_from_drop_trace_file = last_line_of_drop_trace_file['Time'] - 1
-        print(f'PIT last time: {simulation_time_from_pit_trace_file}')
-        print(f'Rate trace last time: {simulation_time_from_rate_trace_file}')
-        print(f'Drop trace last time: {simulation_time_from_drop_trace_file}')
+        # print(f'PIT last time: {simulation_time_from_pit_trace_file}')
+        # print(f'Rate trace last time: {simulation_time_from_rate_trace_file}')
+        # print(f'Drop trace last time: {simulation_time_from_drop_trace_file}')
         if simulation_time_from_drop_trace_file < simulation_time:
             simulation_time = simulation_time_from_drop_trace_file
-        print(f'simulation_time: {simulation_time}')
+        # print(f'simulation_time: {simulation_time}')
         return simulation_time
 
     def extract_graphs_from_simulation_files(self, simulation_files, simulation_index, total_simulations, split):
@@ -502,13 +502,13 @@ class Extractor():
 
     def split_files(self, files):
         # Split files depending on the train ids
-        print('files: {}'.format(files))
+        # print('files: {}'.format(files))
         train_files = [file for file in files if int(file.split('-')[-1].split('.')[0]) in self.train_sim_ids]
-        print('train_files: {}'.format(train_files))
+        # print('train_files: {}'.format(train_files))
         val_files = [file for file in files if int(file.split('-')[-1].split('.')[0]) in self.val_sim_ids]
-        print('val_files: {}'.format(val_files))
+        # print('val_files: {}'.format(val_files))
         test_files = [file for file in files if int(file.split('-')[-1].split('.')[0]) in self.test_sim_ids]
-        print('test_files: {}'.format(test_files))
+        # print('test_files: {}'.format(test_files))
         return train_files, val_files, test_files
 
     @staticmethod
@@ -562,7 +562,7 @@ class Extractor():
                         for s_index, simulation_index in enumerate(simulation_indices):
                             simulation_files = [file for file in n_att_files if
                                                 int(file.split('-')[-1].split('.')[0]) == simulation_index]
-                            print('simulation files: {}'.format(simulation_files))
+                            # print('simulation files: {}'.format(simulation_files))
                             # Extract graphs from single simulation
                             tg_graphs = self.extract_graphs_from_simulation_files(simulation_files=simulation_files,
                                                                                   simulation_index=s_index + 1,
