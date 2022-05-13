@@ -15,7 +15,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import warnings
 
-font = {'size': 18}
+font = {'size': 22}
 matplotlib.rc('font', **font)
 warnings.filterwarnings("ignore")
 
