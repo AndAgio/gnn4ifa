@@ -5,6 +5,9 @@
 # print('dataset.raw_dir: {}'.format(dataset.raw_dir))
 # print('dataset.processed_dir: {}'.format(dataset.processed_dir))
 import os
+import sys
+import subprocess
+import shutil
 import pandas as pd
 import numpy as np
 import glob
@@ -36,7 +39,7 @@ def plot_pit_distributions(download_folder, scenarios, topologies):
     #         else:
     #             pit_sizes[topology][scenario]['1'] = {'0': []}
     pit_sizes = get_empty_dict_from_file_names(download_folder, scenarios)
-    print('pit_sizes: {}'.format(pit_sizes))
+    print('Extracting PIT sizes. This may take a while...')
     # Iterate over each topology received in input
     for topology in topologies:
         # Iterate over each scenario passed as input
@@ -77,9 +80,11 @@ def plot_pit_distributions(download_folder, scenarios, topologies):
                 pit_sizes[topology][scenario]['1']['0'] += pits
     # print('pit_sizes: {}'.format(pit_sizes))
     # Fit gaussian distributions
+    print('Fitting gaussians...')
     gauss_dict = fit_gaussian(pit_sizes)
-    print('gauss_dict: {}'.format(gauss_dict))
+    # print('gauss_dict: {}'.format(gauss_dict))
     # Plot distribution
+    print('Saving plots...')
     plot_gaussians(pit_sizes, gauss_dict)
     plot_gaussians_singles(pit_sizes, gauss_dict)
     plot_hists(pit_sizes, gauss_dict)
@@ -92,7 +97,7 @@ def fit_gaussian(pit_sizes):
                                     for freq in pit_sizes[topo][scenario].keys()}
                          for scenario in pit_sizes[topo].keys()}
                   for topo in pit_sizes.keys()}
-    print('gauss_dict: {}'.format(gauss_dict))
+    # print('gauss_dict: {}'.format(gauss_dict))
     # Iterate over each topology received in input
     for topo_name, topo_dict in pit_sizes.items():
         # Iterate over each scenario passed as input
@@ -243,6 +248,7 @@ def plot_gaussians(pit_sizes, gauss_dict):
     plt.savefig(image_path + '.jpg')
     plt.show()
     plt.close()
+    compress(image_path + '.pdf', power=4)
 
 
 def plot_gaussians_singles(pit_sizes, gauss_dict):
@@ -311,13 +317,14 @@ def plot_gaussians_singles(pit_sizes, gauss_dict):
                     axs.set_ylim(0, 0.2)
                     axs.set_xlim(0, 1200)
                     axs.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3, prop={'size': 18})
-        image_name = 'PITS_gauss_{}_'.format(topo_name)
+        image_name = 'PITS_gauss_{}'.format(topo_name)
         image_path = os.path.join(out_path, image_name)
         plt.tight_layout()
         plt.savefig(image_path + '.pdf', dpi=200)
         plt.savefig(image_path + '.png')
         plt.show()
         plt.close()
+        compress(image_path + '.pdf', power=4)
 
 
 def plot_hists_and_gaussians(pit_sizes, gauss_dict):
@@ -442,6 +449,60 @@ def old_plot_gaussians(pit_sizes, gauss_dict):
         plt.savefig(image_path)
         plt.show()
         plt.close()
+
+
+def compress(input_file_path, output_file_path=None, power=0):
+    """Function to compress PDF via Ghostscript command line interface"""
+    # In case no output file is specified, store in temp file
+    if output_file_path is None:
+        output_file_path = 'temp.pdf'
+    # Define compression quality
+    quality = {
+        0: '/default',
+        1: '/prepress',
+        2: '/printer',
+        3: '/ebook',
+        4: '/screen'
+    }
+    # Basic controls
+    # Check if valid path
+    if not os.path.isfile(input_file_path):
+        print("Error: invalid path for input PDF file")
+        sys.exit(1)
+    # Check if file is a PDF by extension
+    if input_file_path.split('.')[-1].lower() != 'pdf':
+        print("Error: input file is not a PDF")
+        sys.exit(1)
+    gs = get_ghostscript_path()
+    initial_size = os.path.getsize(input_file_path)
+    subprocess.call([gs, '-sDEVICE=pdfwrite', '-dCompatibilityLevel=1.4',
+                     '-dPDFSETTINGS={}'.format(quality[power]),
+                     '-dNOPAUSE', '-dQUIET', '-dBATCH',
+                     '-sOutputFile={}'.format(output_file_path),
+                     input_file_path]
+                    )
+    final_size = os.path.getsize(output_file_path)
+    # In case no output file is specified, erase original file
+    if output_file_path == 'temp.pdf':
+        shutil.copyfile(input_file_path, input_file_path.replace(".pdf", "_BACKUP.pdf"))
+        shutil.copyfile(output_file_path, input_file_path)
+        os.remove(output_file_path)
+        output_file_path = input_file_path
+    ratio = 1 - (final_size / initial_size)
+    print('File {} compressed to {}. '
+          'Compression by {:.0%}. '
+          'Final file size is {:.1f}MB'.format(input_file_path,
+                                               output_file_path,
+                                               ratio,
+                                               final_size / 1000000))
+
+
+def get_ghostscript_path():
+    gs_names = ['gs', 'gswin32', 'gswin64']
+    for name in gs_names:
+        if shutil.which(name):
+            return shutil.which(name)
+    raise FileNotFoundError(f'No GhostScript executable was found on path ({"/".join(gs_names)})')
 
 
 def freq_color(freq):
