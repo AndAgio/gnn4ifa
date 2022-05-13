@@ -11,7 +11,7 @@ class AutoEncoder(torch.nn.Module):
                  n_encoding_layers=2,
                  n_decoding_layers=2):
         super(AutoEncoder, self).__init__()
-        assert conv_type in ['gcn', 'gat', 'cheb']
+        assert conv_type in ['gcn', 'gat', 'cheb', 'gin', 'tag', 'sg']
         self.n_encoding_layers = n_encoding_layers
         self.n_decoding_layers = n_decoding_layers
         # Define layers for encoding
@@ -31,6 +31,16 @@ class AutoEncoder(torch.nn.Module):
                 self.encoding_convs.append(tg.nn.ChebConv(in_dim,
                                                           out_dim,
                                                           K=3))
+            elif conv_type == 'gin':
+                self.encoding_convs.append(tg.nn.GINConv(nn=torch.nn.Linear(in_dim,
+                                                                            out_dim)))
+            elif conv_type == 'tag':
+                self.encoding_convs.append(tg.nn.TAGConv(in_dim,
+                                                         out_dim,
+                                                         K=3))
+            elif conv_type == 'sg':
+                self.encoding_convs.append(tg.nn.SGConv(in_dim,
+                                                        out_dim))
             else:
                 raise ValueError('Something went wrong with convolution type {}!'.format(conv_type))
         # Define layers for decoding
@@ -50,6 +60,16 @@ class AutoEncoder(torch.nn.Module):
                 self.decoding_convs.append(tg.nn.ChebConv(in_dim,
                                                           out_dim,
                                                           K=3))
+            elif conv_type == 'gin':
+                self.decoding_convs.append(tg.nn.GINConv(nn=torch.nn.Linear(in_dim,
+                                                                            out_dim)))
+            elif conv_type == 'tag':
+                self.decoding_convs.append(tg.nn.TAGConv(in_dim,
+                                                         out_dim,
+                                                         K=3))
+            elif conv_type == 'sg':
+                self.decoding_convs.append(tg.nn.SGConv(in_dim,
+                                                        out_dim))
             else:
                 raise ValueError('Something went wrong with convolution type {}!'.format(conv_type))
 
