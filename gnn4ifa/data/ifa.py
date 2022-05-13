@@ -6,7 +6,7 @@ import zipfile
 import time
 import glob
 import torch
-from torch_geometric.data import InMemoryDataset, download_url
+from torch_geometric.data import InMemoryDataset, download_url, Data
 from torch_geometric.loader import DataLoader
 # Import modules
 from gnn4ifa.utils import download_file_from_google_drive
@@ -39,13 +39,13 @@ class IfaDataset(InMemoryDataset):
         self.attackers = attackers
         # assert n_attackers is not None
         self.n_attackers = n_attackers
-        for train_sim_id in train_sim_ids:
-            assert 1 <= train_sim_id <= 5
-        for val_sim_id in val_sim_ids:
-            assert 1 <= val_sim_id <= 5
-        for test_sim_id in test_sim_ids:
-            assert 1 <= test_sim_id <= 5
-        assert set(train_sim_ids + val_sim_ids + test_sim_ids) == {1, 2, 3, 4, 5}
+        # for train_sim_id in train_sim_ids:
+        #     assert 1 <= train_sim_id <= 5
+        # for val_sim_id in val_sim_ids:
+        #     assert 1 <= val_sim_id <= 5
+        # for test_sim_id in test_sim_ids:
+        #     assert 1 <= test_sim_id <= 5
+        # assert set(train_sim_ids + val_sim_ids + test_sim_ids) == {1, 2, 3, 4, 5}
         self.train_sim_ids = train_sim_ids
         self.val_sim_ids = val_sim_ids
         self.test_sim_ids = test_sim_ids
@@ -163,7 +163,7 @@ class IfaDataset(InMemoryDataset):
             file_names = glob.glob(os.path.join(self.download_dir, '*', '*', '*', '*.txt'))
         else:
             file_names = glob.glob(os.path.join(self.download_dir, '*.txt'))
-        print('file_names: {}'.format(file_names))
+        # print('file_names: {}'.format(file_names))
         Extractor(data_dir=self.download_folder,
                   scenario=self.scenario,
                   topology=self.topology,
@@ -258,8 +258,11 @@ class IfaDataset(InMemoryDataset):
                 self.store_processed_data(data_list, self.processed_paths[index])
 
     def store_processed_data(self, data_list, name):
-        data, slices = self.collate(data_list)
         print('Storing data files to {}...'.format(name))
+        print('data_list: {}'.format(data_list))
+        if data_list == []:
+            data_list = [Data()]
+        data, slices = self.collate(data_list)
         # Create tg processed folder if it doesn't exist
         pr_path = os.path.join(*name.split('/')[:-1])
         print('pr_path: {}'.format(pr_path))
@@ -271,41 +274,41 @@ class IfaDataset(InMemoryDataset):
         # Return all graphs of simulations having specified attack frequency
         # Filter graphs by train_scenario and get only those graphs that have attack_is_on==True
         data = [data for data in self if data['frequency'] in frequencies]
-        print('Number of filtered graphs over {} frequencies: {}'.format(frequencies,
-                                                                         len(data)))
+        # print('Number of filtered graphs over {} frequencies: {}'.format(frequencies,
+        #                                                                  len(data)))
         return data
 
     def get_all_attack_data(self, frequencies=None):
         # Return all graphs where a specific attack is active
         # Filter graphs by train_scenario and get only those graphs that have attack_is_on==True
         datas = self.get_all_data(frequencies=frequencies)
-        print('Number of non-filtered graphs: {}'.format(len(datas)))
+        # print('Number of non-filtered graphs: {}'.format(len(datas)))
         data = [data for data in datas if data['attack_is_on'] == 1]
-        print('Number of filtered graphs over active attack: {}'.format(len(data)))
+        # print('Number of filtered graphs over active attack: {}'.format(len(data)))
         return data
 
     def get_all_legitimate_data(self, frequencies=None):
         # Return all graphs where no attack is active
         # Gather all graphs over all scenarios and get only those graphs that have attack_is_on==False
         datas = self.get_all_data(frequencies=frequencies)
-        print('Number of non-filtered graphs: {}'.format(len(datas)))
-        for data in datas:
-            print('data: {}'.format(data))
-            break
+        # print('Number of non-filtered graphs: {}'.format(len(datas)))
+        # for data in datas:
+        #     print('data: {}'.format(data))
+        #     break
         data = [data for data in datas if data['attack_is_on'] == 0]
-        print('Number of filtered graphs: {}'.format(len(data)))
+        # print('Number of filtered graphs: {}'.format(len(data)))
         return data
 
     def get_only_normal_data(self, frequencies=None):
         # Return all graphs where no attack is active
         # Gather all graphs over all scenarios and get only those graphs that have attack_is_on==False
         datas = self.get_all_data(frequencies=frequencies)
-        print('Number of non-filtered graphs: {}'.format(len(datas)))
-        for data in datas:
-            print('data: {}'.format(data))
-            break
+        # print('Number of non-filtered graphs: {}'.format(len(datas)))
+        # for data in datas:
+        #     print('data: {}'.format(data))
+        #     break
         data = [data for data in datas if data['train_scenario'] == 0]
-        print('Number of filtered graphs: {}'.format(len(data)))
+        # print('Number of filtered graphs: {}'.format(len(data)))
         return data
 
     def get_randomly_sampled_legitimate_data(self, frequencies=None, p=0.3):
@@ -313,7 +316,16 @@ class IfaDataset(InMemoryDataset):
         # Gather all graphs over all scenarios and get only those graphs that have attack_is_on==False
         all_legitime_data = self.get_all_legitimate_data(frequencies=frequencies)
         data = normal_data + random.sample(all_legitime_data, math.floor(p*len(all_legitime_data)))
-        print('Number of filtered graphs: {}'.format(len(data)))
+        # print('Number of filtered graphs: {}'.format(len(data)))
+        return data
+
+    def get_sampled_legitimate_data(self, n_attackers=11, frequencies=None):
+        normal_data = self.get_only_normal_data(frequencies=frequencies)
+        # Gather all graphs over all scenarios and get only those graphs that have attack_is_on==False
+        all_legitimate_data = self.get_all_legitimate_data(frequencies=frequencies)
+        att_minus_one_data = [data for data in all_legitimate_data if data.n_attackers == n_attackers]
+        data = normal_data + att_minus_one_data
+        # print('Number of filtered graphs: {}'.format(len(data)))
         return data
 
     def get_all_data(self, frequencies=None):
