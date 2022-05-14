@@ -65,6 +65,19 @@ class Extractor():
         return data
 
     @staticmethod
+    def reformat_files(files):
+        # Iterate over all simulation files and read them
+        for file in files:
+            # print('file: {}'.format(file))
+            # Check file type
+            file_type = file.split('/')[-1].split('-')[0]
+            if file_type == 'pit':
+                Extractor.convert_pit_to_decent_format(file)
+            if file_type == 'topology':
+                Extractor.convert_topology_to_decent_format(file)
+        return
+
+    @staticmethod
     def convert_pit_to_decent_format(file):
         # Get number of lines of file
         num_lines = sum(1 for _ in open(file))
@@ -336,6 +349,7 @@ class Extractor():
         return graph
 
     def get_simulation_time(self, simulation_files):
+        # print('simulation_files: {}'.format(simulation_files))
         # Check if simulation has run up until the end or not. To avoid NaN issues inside features
         rate_trace_file = [file for file in simulation_files if 'rate-trace' in file][0]
         last_line_of_rate_trace_file = pd.read_csv(rate_trace_file, sep='\t', index_col=False).iloc[-1]
@@ -524,7 +538,7 @@ class Extractor():
     @timeit
     def run(self, downloaded_data_file, raw_dir, raw_file_names):
         # print('\nraw_file_names: {}\n'.format(raw_file_names))
-        downloaded_data_file = Extractor.rename_topology_files(downloaded_data_file)
+        # downloaded_data_file = Extractor.rename_topology_files(downloaded_data_file)
         # Split the received files into train, validation and test
         files_lists = self.split_files(downloaded_data_file)
         # Iterate over train validation and test and get graph samples

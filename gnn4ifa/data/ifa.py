@@ -162,7 +162,7 @@ class IfaDataset(InMemoryDataset):
         #     self.convert_dataset_to_tg_graphs()
         return
 
-    def convert_dataset_to_tg_graphs(self):
+    def read_files(self):
         # Import stored dictionary of data
         if self.scenario == 'all':
             dwn_dir = os.path.join(self.download_folder, 'IFA_4_existing', '{}_topology'.format(self.topology) \
@@ -175,6 +175,16 @@ class IfaDataset(InMemoryDataset):
             file_names = glob.glob(os.path.join(self.download_dir, '*', '*', '*', '*.txt'))
         else:
             file_names = glob.glob(os.path.join(self.download_dir, '*.txt'))
+        return file_names
+
+    def convert_dataset_to_tg_graphs(self):
+        file_names = self.read_files()
+        # Rename topology files if they exist
+        Extractor.rename_topology_files(file_names)
+        file_names = self.read_files()
+        # Refactor topology and pit files of they exist
+        Extractor.reformat_files(file_names)
+        file_names = self.read_files()
         # print('file_names: {}'.format(file_names))
         Extractor(data_dir=self.download_folder,
                   scenario=self.scenario,
@@ -231,9 +241,9 @@ class IfaDataset(InMemoryDataset):
         for index in range(len(self.raw_file_names)):
             # Check if it is possible to load the tg raw file
             try:
-                print('self.raw_file_names[index]: {}'.format(self.raw_file_names[index]))
+                # print('self.raw_file_names[index]: {}'.format(self.raw_file_names[index]))
                 data_list = torch.load(os.path.join(self.raw_dir, self.raw_file_names[index]))
-                print('Try worked')
+                print('PyTorch geometric raw files found!')
                 # Apply pre_filter and pre_transform if necessary
                 if self.pre_filter is not None:
                     data_list = [data for data in data_list if self.pre_filter(data)]
@@ -242,14 +252,14 @@ class IfaDataset(InMemoryDataset):
                 # Store
                 self.store_processed_data(data_list, self.processed_paths[index])
             except FileNotFoundError:
-                print('Inside exception')
+                print('PyTorch geometric raw files not found!')
                 # Check if the dataset is already downloaded or not
                 # Gather real names of files
                 existing_file_names = glob.glob(os.path.join(self.download_dir, '*', '*.txt'))
                 # If the two sets don't match it means that the dataset was not downloaded yet
                 required_file_names = [os.path.join(self.download_dir, name) for name in self.download_file_names]
-                print('existing_file_names: {}'.format(existing_file_names))
-                print('required_file_names: {}'.format(required_file_names))
+                # print('existing_file_names: {}'.format(existing_file_names))
+                # print('required_file_names: {}'.format(required_file_names))
                 if set(required_file_names) != set(existing_file_names):
                     print('Didn\'t find the dataset. Downloading it...')
                     self.download()
