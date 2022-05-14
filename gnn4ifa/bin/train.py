@@ -109,7 +109,6 @@ class Trainer():
                                         transform=transform,
                                         scenario=self.train_scenario if self.mode == 'class' else 'all' if self.differential else 'normal',
                                         topology=self.train_topology,
-                                        attackers=self.attackers,
                                         n_attackers=self.n_attackers,
                                         train_sim_ids=self.train_sim_ids,
                                         val_sim_ids=self.val_sim_ids,
@@ -676,7 +675,7 @@ class Trainer():
         # print('interesting_setups_metrics_dict: {}'.format(interesting_setups_metrics_dict))
         # print('interesting_setups_metrics_dict dataframe:\n{}'.format(pd.DataFrame(interesting_setups_metrics_dict)))
         # Print results to text output file
-        output_path = os.path.join(self.out_path, 'results', mode.upper())
+        output_path = os.path.join(self.out_path, 'results', mode.upper(), 'performance')
         if not os.path.exists(output_path):
             os.makedirs(output_path)
         if mode == 'uad':
@@ -802,7 +801,7 @@ class Trainer():
     def get_threshold(self, metric='mae'):
         print('Computing {}s over legitimate training samples'.format(metric.upper()))
         values = []
-        loader = get_data_loader(self.train_dataset.get_all_legitimate_data(),
+        loader = get_data_loader(self.train_dataset.get_only_normal_data(),
                                  batch_size=1,
                                  shuffle=True)
         for batch_index, data in enumerate(loader):

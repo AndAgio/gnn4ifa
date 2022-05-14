@@ -37,7 +37,7 @@ def gather_settings():
                         help='set to 1 if differential between node features is used for dataset, else set to 0')
     parser.add_argument('--model', default='class_gcn_2x100_mean',
                         help='model to be used for training')
-    parser.add_argument('--masking', default=0, type=int,
+    parser.add_argument('--masking', default=1, type=int,
                         help='set to 1 if training using node masking technique, else set to 0')
     parser.add_argument('--percentile', default=0.99, type=float,
                         help='percentile to be used during anomaly detection')

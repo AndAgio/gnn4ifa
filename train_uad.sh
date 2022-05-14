@@ -10,7 +10,7 @@ do
   do
     for k in ${!percentiles[@]};
     do
-      python train.py --differential=1 --model="anomaly_${convs[$j]}_2x2_100x100" --percentile=${percentiles[$k]} --train_scenario="existing" --train_topology="${topos[$i]}" --epochs=10
+      python train.py --differential=1 --model="anomaly_${convs[$j]}_2x2_100x100" --percentile=${percentiles[$k]} --train_scenario="existing" --train_topology="${topos[$i]}" --epochs=10 --masking=1
     done
   done
 done
