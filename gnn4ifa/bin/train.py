@@ -1,5 +1,5 @@
 import os
-
+import time
 import numpy as np
 import pandas as pd
 import torch
@@ -394,12 +394,13 @@ class Trainer():
         # Compute reconstruction loss
         loss = self.criterion(target=y_true,
                               input=y_pred)
-        if torch.isnan(loss).any():
-            raise ValueError('Something very wrong! Loss turned NaN!')
-        # Compute gradient
-        loss.backward()
-        # Backpropragate
-        self.optimizer.step()
+        # if torch.isnan(loss).any():
+        #     raise ValueError('Something very wrong! Loss turned NaN!')
+        if not torch.isnan(loss).any():
+            # Compute gradient
+            loss.backward()
+            # Backpropragate
+            self.optimizer.step()
         # Compute metrics over predictions
         scores = {}
         for metric_name, metric_object in self.metrics.items():
@@ -488,9 +489,12 @@ class Trainer():
     def _test_class(self):
         all_preds = None
         all_labels = None
+        inference_times = []
         metrics_dict = self.get_empty_metrics_dict(mode='sad')
         for batch_index, data in enumerate(self.test_loader):
+            start_time = time.time()
             batch_preds, batch_labels = self.test_step(data, metrics=self.metrics)
+            inference_times.append((time.time() - start_time) / data.attack_is_on.shape[0])
             # Append batch predictions and labels to the list containing every prediction and every label
             if batch_index == 0:
                 all_preds = batch_preds
@@ -516,17 +520,23 @@ class Trainer():
                 frequency = frequencies[sample_index]
                 attackers_type = get_labels_attacker_type_dict()[attackers_types[sample_index]]
                 n_attackers = n_attackerss[sample_index]
-                print('Test sample taken from simulation with'
-                      'topology={}, scenario={}, '
-                      'attackers_type={}, frequency={}, '
-                      'n_attackers={}'.format(topology,
-                                              scenario,
-                                              attackers_type,
-                                              frequency,
-                                              n_attackers))
-                metrics_dict[topology][scenario][frequency][attackers_type][n_attackers]['preds'].append(batch_preds[sample_index])
-                metrics_dict[topology][scenario][frequency][attackers_type][n_attackers]['labels'].append(batch_labels[sample_index])
+                # print('Test sample taken from simulation with'
+                #       'topology={}, scenario={}, '
+                #       'attackers_type={}, frequency={}, '
+                #       'n_attackers={}'.format(topology,
+                #                               scenario,
+                #                               attackers_type,
+                #                               frequency,
+                #                               n_attackers))
+                metrics_dict[topology][scenario][frequency][attackers_type][n_attackers]['preds'].append(
+                    batch_preds[sample_index])
+                metrics_dict[topology][scenario][frequency][attackers_type][n_attackers]['labels'].append(
+                    batch_labels[sample_index])
         print()
+        inference_times = [inf * 1000 for inf in inference_times]
+        print(u'Inference time: {:.3f} \u00B1 {:.3f} ms over {} samples'.format(np.mean(inference_times),
+                                                                                np.std(inference_times),
+                                                                                len(inference_times)))
         self.format_and_print_stats(metrics_dict, mode='sad')
 
     @torch.no_grad()
@@ -565,6 +575,7 @@ class Trainer():
         simulations_false_alarms = []
         simulations_true_alarms = []
         simulations_exact_alarms = []
+        inference_times = []
         metrics_dict = self.get_empty_metrics_dict(mode='uad')
         # Iterate over all simulations belonging to the test set
         for sim_index, simulation in self.test_loader.items():
@@ -586,8 +597,10 @@ class Trainer():
             labels = []
             for sample_index, sample in enumerate(simulation):
                 sample = sample.to(self.device)
+                start_time = time.time()
                 prediction, label = self.test_step(sample, metrics=None,
                                                    threshold=threshold, threshold_metric=threshold_metric)
+                inference_times.append(time.time() - start_time)
                 # Append prediction and label to the list containing every prediction and label of the simulation
                 predictions.append(prediction.numpy().item())
                 labels.append(label.numpy().item())
@@ -628,6 +641,10 @@ class Trainer():
                                              len(simulations_true_alarms)))
         print('Overall FPR = {:.3f}%'.format(100 * sum(simulations_false_alarms) /
                                              (len(simulations_false_alarms) * self.time_att_start)))
+        inference_times = [inf * 1000 for inf in inference_times]
+        print(u'Inference time: {:.3f} \u00B1 {:.3f} ms over {} samples'.format(np.mean(inference_times),
+                                                                                np.std(inference_times),
+                                                                                len(inference_times)))
         self.format_and_print_stats(metrics_dict, mode='uad')
 
     def format_and_print_stats(self, metrics_dict, mode='uad'):
@@ -681,7 +698,7 @@ class Trainer():
                     predictions = torch.stack(data['preds'])
                     labels = torch.stack(data['labels'])
                     first[freq_name][n_att] = self.metrics['acc'].compute(y_pred=predictions,
-                                                                          y_true=labels)*100
+                                                                          y_true=labels) * 100
                 else:
                     raise ValueError('Mode {} is not available!')
         first = pd.DataFrame(first)
@@ -690,12 +707,12 @@ class Trainer():
         for freq_name, freq_dict in interesting_setups_metrics_dict.items():
             for n_att, data in freq_dict.items():
                 if mode == 'uad':
-                    first[freq_name][n_att] = data['fps']
+                    second[freq_name][n_att] = data['fps']
                 elif mode == 'sad':
                     predictions = torch.stack(data['preds'])
                     labels = torch.stack(data['labels'])
                     second[freq_name][n_att] = self.metrics['f1'].compute(y_pred=predictions,
-                                                                         y_true=labels)*100
+                                                                          y_true=labels) * 100
         second = pd.DataFrame(second)
         first = first.append(first.mean(axis=0).rename('avg'))
         first['avg'] = first.mean(axis=1)
@@ -729,9 +746,8 @@ class Trainer():
                         # Iterate over number of attackers
                         for n_att_name, data in att_type_dict.items():
                             # Normalize data
-                            print('data: {}'.format(data))
-                            data['tps'] = 100*sum(data['tps'])/len(data['tps'])
-                            data['fps'] = 100*sum(data['fps'])/(self.time_att_start*len(data['fps']))
+                            data['tps'] = 100 * sum(data['tps']) / len(data['tps'])
+                            data['fps'] = 100 * sum(data['fps']) / (self.time_att_start * len(data['fps']))
         return metrics_dict
 
     @torch.no_grad()
