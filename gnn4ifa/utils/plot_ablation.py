@@ -106,7 +106,7 @@ def plot_percentile_comparison(files_list, topologies, conv, percentiles):
 
 def plot_micro_percentile_comparison(files_list, topologies, convs, percentiles):
     out_path = get_out_path()
-    fig, axs = plt.subplots(1, 2*len(topologies), figsize=(20, 5))  # Create matplotlib figure
+    fig, axs = plt.subplots(1, 2 * len(topologies), figsize=(20, 5))  # Create matplotlib figure
     for topo_index, topo in enumerate(topologies):
         print('files path: {}'.format(os.path.join(*files_list[0].split('/')[:-1])))
         print('files: {}'.format([f.split('/')[-1] for f in files_list]))
@@ -134,24 +134,26 @@ def plot_micro_percentile_comparison(files_list, topologies, convs, percentiles)
                 tps[percentile] = data['tps']['avg']['avg']
                 fps[percentile] = data['fps']['avg']['avg']
             print([float(v) for v in list(tps.keys())])
-            lines.append(axs[topo_index*2].plot([float(v) for v in list(tps.keys())], list(tps.values()),
-                                     color=conv_color(conv), marker='o',
-                                     markersize=5, label='{}'.format(conv.upper() if conv != 'cheb' else conv.capitalize()))[0])
-            axs[topo_index*2-1].plot([float(v) for v in list(fps.keys())], list(fps.values()),
-                        color=conv_color(conv), marker='o',
-                        markersize=5, label='{}'.format(conv.upper() if conv != 'cheb' else conv.capitalize()))
-        axs[topo_index*2].set_ylabel('TPR (%)')
-        axs[topo_index*2].set_xlabel('Percentile')
-        axs[topo_index*2].set_ylim(0, 110)
-        axs[topo_index*2-1].set_ylabel('FPR (%)')
-        axs[topo_index*2-1].set_xlabel('Percentile')
-        axs[topo_index*2-1].set_ylim(0, 25)
+            lines.append(axs[topo_index * 2].plot([float(v) for v in list(tps.keys())], list(tps.values()),
+                                                  color=conv_color(conv), marker='o',
+                                                  markersize=5, label='{}'.format(
+                    conv.upper() if conv != 'cheb' else conv.capitalize()))[0])
+            axs[topo_index * 2 - 1].plot([float(v) for v in list(fps.keys())], list(fps.values()),
+                                         color=conv_color(conv), marker='o',
+                                         markersize=5,
+                                         label='{}'.format(conv.upper() if conv != 'cheb' else conv.capitalize()))
+        axs[topo_index * 2].set_ylabel('TPR (%)')
+        axs[topo_index * 2].set_xlabel('Percentile')
+        axs[topo_index * 2].set_ylim(0, 110)
+        axs[topo_index * 2 - 1].set_ylabel('FPR (%)')
+        axs[topo_index * 2 - 1].set_xlabel('Percentile')
+        axs[topo_index * 2 - 1].set_ylim(0, 25)
     print('lines: {}'.format(lines))
     labels = [l.get_label() for l in lines]
     plt.tight_layout()
-    lgd = plt.legend(lines, labels, loc='center left', bbox_to_anchor=(-3.5, -0.4), ncol=len(convs))
+    lgd = plt.legend(lines, labels, loc='center left', bbox_to_anchor=(-3.25, -0.4), ncol=len(convs))
     plt.tight_layout()
-    image_name = 'UAD_percentile_{}'.format(topo)
+    image_name = 'UAD_percentile'
     image_path = os.path.join(out_path, image_name)
     plt.savefig(image_path + '.pdf', bbox_extra_artists=(lgd,), bbox_inches='tight')
     plt.show()
@@ -191,8 +193,8 @@ def plot_conv_comparison_sad(files_list, topologies, convs, pool, mu):
         ax1 = fig.add_subplot(111)  # Create matplotlib axes
         ax2 = ax1.twinx()  # Create another axes that shares the same x-axis as ax.
         width = 0.4
-        results.tps.plot(kind='bar', color='tomato', ax=ax1, width=width, position=1, rot=45, align='center')
-        results.fps.plot(kind='bar', color='royalblue', ax=ax2, width=width, position=0, align='center')
+        results.acc.plot(kind='bar', color='tomato', ax=ax1, width=width, position=1, rot=45, align='center')
+        results.f1.plot(kind='bar', color='royalblue', ax=ax2, width=width, position=0, align='center')
         ax1.set_ylabel('Accuracy (%)')
         ax1.set_ylim(0, 110)
         ax1.set_xlim(-0.5, 4.5)
@@ -200,7 +202,7 @@ def plot_conv_comparison_sad(files_list, topologies, convs, pool, mu):
         ax2.set_ylim(0, 110)
         ax2.set_xlim(-0.5, 4.5)
         plt.tight_layout()
-        image_name = 'SAD_convs_{}'.format(topo)
+        image_name = 'SAD_convs'
         image_path = os.path.join(out_path, image_name)
         plt.savefig(image_path + '.pdf')
         plt.show()
@@ -208,7 +210,8 @@ def plot_conv_comparison_sad(files_list, topologies, convs, pool, mu):
 
 def plot_micro_mu_comparison(files_list, topologies, convs, pool, mus):
     out_path = get_out_path()
-    for topo in topologies:
+    fig, axs = plt.subplots(1, 2*len(topologies), figsize=(20, 5))  # Create matplotlib figure
+    for topo_index, topo in enumerate(topologies):
         print('files path: {}'.format(os.path.join(*files_list[0].split('/')[:-1])))
         print('files: {}'.format([f.split('/')[-1] for f in files_list]))
         print('topo: {}'.format(topo))
@@ -218,7 +221,6 @@ def plot_micro_mu_comparison(files_list, topologies, convs, pool, mus):
         #     print('topo in file: {}'.format(topo in file))
         #     print('topo in file: {}'.format(topo in file))
         #     print('topo in file: {}'.format(topo in file))
-        fig, axs = plt.subplots(1, 2, figsize=(15, 5))  # Create matplotlib figure
         lines = []
         for conv in convs:
             files = [file for file in files_list
@@ -230,38 +232,43 @@ def plot_micro_mu_comparison(files_list, topologies, convs, pool, mus):
             accs = {}
             f1s = {}
             for mu in mus:
-                file = [file for file in files if file.split('_')[-2].split('=')[-1] == str(mu)][0]
-                print('percentile is: {} -> file found is: {}'.format(mu, file.split('/')[-1]))
+                file = [file for file in files if file.split('_')[-3].split('x')[0] == str(mu)][0]
+                print('mu is: {} -> file found is: {}'.format(mu, file.split('/')[-1]))
                 with open(file, "rb") as input_file:
                     data = pickle.load(input_file)
                 accs[mu] = data['acc']['avg']['avg']
                 f1s[mu] = data['f1']['avg']['avg']
             print([int(v) for v in list(accs.keys())])
-            lines.append(axs[0].plot([int(v) for v in list(accs.keys())], list(accs.values()),
-                                     color=conv_color(conv), linestyle='-',
-                                     linewidth=3, label='{}'.format(conv.upper() if conv != 'cheb' else conv.capitalize()))[0])
-            axs[1].plot([float(v) for v in list(f1s.keys())], list(f1s.values()),
-                        color=conv_color(conv), linestyle='-',
-                        linewidth=3, label='{}'.format(conv.upper() if conv != 'cheb' else conv.capitalize()))
-        axs[0].set_ylabel('Accuracy (%)')
-        axs[0].set_xlabel(r'$\mu$')
-        axs[0].set_ylim(0, 110)
-        axs[1].set_ylabel('F1-score (%)')
-        axs[1].set_xlabel(r'$\mu$')
-        axs[1].set_ylim(0, 110)
-        print('lines: {}'.format(lines))
-        labels = [l.get_label() for l in lines]
-        plt.legend(lines, labels, loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.tight_layout()
-        image_name = 'SAD_mus_{}'.format(topo)
-        image_path = os.path.join(out_path, image_name)
-        plt.savefig(image_path + '.pdf')
-        plt.show()
+            lines.append(axs[topo_index * 2].plot([int(v) for v in list(accs.keys())], list(accs.values()),
+                                     color=conv_color(conv), marker='o',
+                                     markersize=5,
+                                     label='{}'.format(conv.upper() if conv != 'cheb' else conv.capitalize()))[0])
+            axs[topo_index * 2-1].plot([int(v) for v in list(f1s.keys())], list(f1s.values()),
+                        color=conv_color(conv), marker='o',
+                        markersize=5, label='{}'.format(conv.upper() if conv != 'cheb' else conv.capitalize()))
+        axs[topo_index * 2].set_ylabel('Accuracy (%)')
+        axs[topo_index * 2].set_xlabel(r'$\mu$')
+        axs[topo_index * 2].set_ylim(0, 110)
+        axs[topo_index * 2].set_xlim(0.5, 6.5)
+        axs[topo_index * 2-1].set_ylabel('F1-score (%)')
+        axs[topo_index * 2-1].set_xlabel(r'$\mu$')
+        axs[topo_index * 2-1].set_ylim(0, 110)
+        axs[topo_index * 2-1].set_xlim(0.5, 6.5)
+    print('lines: {}'.format(lines))
+    labels = [l.get_label() for l in lines]
+    plt.tight_layout()
+    lgd = plt.legend(lines, labels, loc='center left', bbox_to_anchor=(-3.1, -0.4), ncol=len(convs))
+    plt.tight_layout()
+    image_name = 'SAD_mus'
+    image_path = os.path.join(out_path, image_name)
+    plt.savefig(image_path + '.pdf', bbox_extra_artists=(lgd,), bbox_inches='tight')
+    plt.show()
 
 
 def plot_micro_pools_comparison(files_list, topologies, convs, pools, mu):
     out_path = get_out_path()
-    for topo in topologies:
+    fig, axs = plt.subplots(1, 2*len(topologies), figsize=(20, 5))  # Create matplotlib figure
+    for topo_index, topo in enumerate(topologies):
         print('files path: {}'.format(os.path.join(*files_list[0].split('/')[:-1])))
         print('files: {}'.format([f.split('/')[-1] for f in files_list]))
         print('topo: {}'.format(topo))
@@ -271,7 +278,6 @@ def plot_micro_pools_comparison(files_list, topologies, convs, pools, mu):
         #     print('topo in file: {}'.format(topo in file))
         #     print('topo in file: {}'.format(topo in file))
         #     print('topo in file: {}'.format(topo in file))
-        fig, axs = plt.subplots(1, 2, figsize=(15, 5))  # Create matplotlib figure
         lines = []
         for conv in convs:
             files = [file for file in files_list
@@ -283,33 +289,38 @@ def plot_micro_pools_comparison(files_list, topologies, convs, pools, mu):
             accs = {}
             f1s = {}
             for pool in pools:
-                file = [file for file in files if file.split('_')[-2].split('=')[-1] == mu][0]
-                print('percentile is: {} -> file found is: {}'.format(mu, file.split('/')[-1]))
+                file = [file for file in files if file.split('_')[-2] == pool][0]
+                print('pool is: {} -> file found is: {}'.format(pool, file.split('/')[-1]))
                 with open(file, "rb") as input_file:
                     data = pickle.load(input_file)
                 accs[pool] = data['acc']['avg']['avg']
                 f1s[pool] = data['f1']['avg']['avg']
             print([v for v in list(accs.keys())])
-            lines.append(axs[0].plot([v for v in list(accs.keys())], list(accs.values()),
-                                     color=conv_color(conv), linestyle='-',
-                                     linewidth=3, label='{}'.format(conv.upper() if conv != 'cheb' else conv.capitalize()))[0])
-            axs[1].plot([float(v) for v in list(f1s.keys())], list(f1s.values()),
-                        color=conv_color(conv), linestyle='-',
-                        linewidth=3, label='{}'.format(conv.upper() if conv != 'cheb' else conv.capitalize()))
-        axs[0].set_ylabel('Accuracy (%)')
-        axs[0].set_xlabel('Pooling layer')
-        axs[0].set_ylim(0, 110)
-        axs[1].set_ylabel('F1-score (%)')
-        axs[1].set_xlabel('Pooling layer')
-        axs[1].set_ylim(0, 110)
-        print('lines: {}'.format(lines))
-        labels = [l.get_label() for l in lines]
-        plt.legend(lines, labels, loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.tight_layout()
-        image_name = 'SAD_pools_{}'.format(topo)
-        image_path = os.path.join(out_path, image_name)
-        plt.savefig(image_path + '.pdf')
-        plt.show()
+            lines.append(axs[topo_index * 2].plot([v for v in list(accs.keys())], list(accs.values()),
+                                     color=conv_color(conv), marker='o', markersize=5,  # linestyle='-', linewidth=3,
+                                     label='{}'.format(conv.upper() if conv != 'cheb' else conv.capitalize()))[0])
+            axs[topo_index * 2-1].plot([v for v in list(f1s.keys())], list(f1s.values()),
+                        color=conv_color(conv), marker='o', markersize=5,  # linestyle='-', linewidth=3, linewidth=3,
+                        label='{}'.format(conv.upper() if conv != 'cheb' else conv.capitalize()))
+        axs[topo_index * 2].set_ylabel('Accuracy (%)')
+        axs[topo_index * 2].set_xlabel('Pooling layer')
+        axs[topo_index * 2].set_ylim(0, 110)
+        axs[topo_index * 2].set_xlim(-0.5, 4.5)
+        axs[topo_index * 2].tick_params(labelrotation=45)
+        axs[topo_index * 2-1].set_ylabel('F1-score (%)')
+        axs[topo_index * 2-1].set_xlabel('Pooling layer')
+        axs[topo_index * 2-1].set_ylim(0, 110)
+        axs[topo_index * 2-1].set_xlim(-0.5, 4.5)
+        axs[topo_index * 2-1].tick_params(labelrotation=45)
+    print('lines: {}'.format(lines))
+    labels = [l.get_label() for l in lines]
+    plt.tight_layout()
+    lgd = plt.legend(lines, labels, loc='center left', bbox_to_anchor=(-3.1, -0.6), ncol=len(convs))
+    plt.tight_layout()
+    image_name = 'SAD_pools'
+    image_path = os.path.join(out_path, image_name)
+    plt.savefig(image_path + '.pdf', bbox_extra_artists=(lgd,), bbox_inches='tight')
+    plt.show()
 
 
 def conv_color(conv):
@@ -344,12 +355,12 @@ def main():
     # Run plotters for uad
     files_list = get_files_list(model='uad')
     plot_conv_comparison_uad(files_list, topologies, convs, percentiles[-3])
-    plot_percentile_comparison(files_list, topologies, convs[0], percentiles)
+    # plot_percentile_comparison(files_list, topologies, convs[0], percentiles)
     plot_micro_percentile_comparison(files_list, topologies, convs, percentiles)
     # Run plotters for sad
     files_list = get_files_list(model='sad')
     pools = ["mean", "sum", "max", "s2s", "att"]
-    mus = [1, 2, 3, 4, 5, 6, 7, 8]
+    mus = [1, 2, 3, 4, 5, 6]
     plot_conv_comparison_sad(files_list, topologies, convs, pools[0], mus[2])
     plot_micro_mu_comparison(files_list, topologies, convs, pools[0], mus)
     plot_micro_pools_comparison(files_list, topologies, convs, pools, mus[2])
