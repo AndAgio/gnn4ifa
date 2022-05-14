@@ -21,7 +21,6 @@ class IfaDataset(InMemoryDataset):
                  pre_transform=None,
                  scenario='existing',
                  topology='small',
-                 attackers='fixed',
                  n_attackers=None,
                  train_sim_ids=[1, 2, 3],
                  val_sim_ids=[4],
@@ -30,13 +29,26 @@ class IfaDataset(InMemoryDataset):
                  time_att_start=50,
                  differential=False,
                  split='train'):
+        print(f'Setup:\n'
+              f'root={root}\n'
+              f'download_folder={download_folder}\n'
+              f'transform={transform}\n'
+              f'pre_transform={pre_transform}\n'
+              f'scenario={scenario}\n'
+              f'topology={topology}\n'
+              f'n_attackers={n_attackers}\n'
+              f'train_sim_ids={train_sim_ids}\n'
+              f'val_sim_ids={val_sim_ids}\n'
+              f'test_sim_ids={test_sim_ids}\n'
+              f'simulation_time={simulation_time}\n'
+              f'time_att_start={time_att_start}\n'
+              f'differential={differential}\n'
+              f'split={split}\n')
         self.download_folder = download_folder
         assert scenario in ['existing', 'non_existing', 'normal', 'all']
         self.scenario = scenario
         assert topology in ['small', 'dfn']
         self.topology = topology
-        assert attackers in ['fixed', 'variable']
-        self.attackers = attackers
         # assert n_attackers is not None
         self.n_attackers = n_attackers
         # for train_sim_id in train_sim_ids:
@@ -154,10 +166,10 @@ class IfaDataset(InMemoryDataset):
         # Import stored dictionary of data
         if self.scenario == 'all':
             dwn_dir = os.path.join(self.download_folder, 'IFA_4_existing', '{}_topology'.format(self.topology) \
-                                    if self.topology != 'dfn' else '{}_topology'.format(self.topology.upper()))
+                if self.topology != 'dfn' else '{}_topology'.format(self.topology.upper()))
             file_names = glob.glob(os.path.join(dwn_dir, '*', '*', '*', '*.txt'))
             dwn_dir = os.path.join(self.download_folder, 'normal', '{}_topology'.format(self.topology) \
-                                    if self.topology != 'dfn' else '{}_topology'.format(self.topology.upper()))
+                if self.topology != 'dfn' else '{}_topology'.format(self.topology.upper()))
             file_names += glob.glob(os.path.join(dwn_dir, '*.txt'))
         elif self.scenario != 'normal':
             file_names = glob.glob(os.path.join(self.download_dir, '*', '*', '*', '*.txt'))
@@ -167,7 +179,6 @@ class IfaDataset(InMemoryDataset):
         Extractor(data_dir=self.download_folder,
                   scenario=self.scenario,
                   topology=self.topology,
-                  attackers=self.attackers,
                   n_attackers=self.n_attackers,
                   train_sim_ids=self.train_sim_ids,
                   val_sim_ids=self.val_sim_ids,
@@ -315,7 +326,7 @@ class IfaDataset(InMemoryDataset):
         normal_data = self.get_only_normal_data(frequencies=frequencies)
         # Gather all graphs over all scenarios and get only those graphs that have attack_is_on==False
         all_legitime_data = self.get_all_legitimate_data(frequencies=frequencies)
-        data = normal_data + random.sample(all_legitime_data, math.floor(p*len(all_legitime_data)))
+        data = normal_data + random.sample(all_legitime_data, math.floor(p * len(all_legitime_data)))
         # print('Number of filtered graphs: {}'.format(len(data)))
         return data
 

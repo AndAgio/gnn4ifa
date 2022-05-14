@@ -19,7 +19,6 @@ class Extractor():
     def __init__(self, data_dir='ifa_data',
                  scenario='existing',
                  topology='small',
-                 attackers='fixed',
                  n_attackers=None,
                  train_sim_ids=[1, 2, 3],
                  val_sim_ids=[4],
@@ -31,7 +30,6 @@ class Extractor():
 
         self.scenario = scenario
         self.topology = topology
-        self.attackers = attackers
         # assert n_attackers is not None
         self.n_attackers = n_attackers
 
