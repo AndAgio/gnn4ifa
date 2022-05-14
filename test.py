@@ -37,6 +37,8 @@ def gather_settings():
                         help='Time of simulations')
     parser.add_argument('--time_att_start', type=int, default=50,
                         help='Attack start time in simulations')
+    parser.add_argument('--differential', default=0, type=int,
+                        help='set to 1 if differential between node features is used for dataset, else set to 0')
     parser.add_argument('--model', default='class_gcn_2x100_mean',
                         help='model to be used for training')
     parser.add_argument('--masking', default=0, type=int,
@@ -65,6 +67,7 @@ def main(args):
                     test_sim_ids=args.test_sims,
                     simulation_time=args.sim_time,
                     time_att_start=args.time_att_start,
+                    differential=True if args.differential == 1 else False,
                     chosen_model=args.model,
                     masking=True if args.masking == 1 else False,
                     percentile=args.percentile,
