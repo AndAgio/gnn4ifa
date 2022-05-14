@@ -13,7 +13,7 @@ do
     do
       for p in ${!pools[@]};
       do
-        python train.py --model="class_${convs[$j]}_${mus[$k]}x100_${pools[$p]}" --train_scenario="existing" --train_topology="${topos[$i]}" --epochs=10 --diferential=0 --masking=0
+        python train.py --model="class_${convs[$j]}_${mus[$k]}x100_${pools[$p]}" --train_scenario="existing" --train_topology="${topos[$i]}" --epochs=10 --differential=0 --masking=0
       done
     done
   done
