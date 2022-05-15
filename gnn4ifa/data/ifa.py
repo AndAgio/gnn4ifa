@@ -280,13 +280,13 @@ class IfaDataset(InMemoryDataset):
 
     def store_processed_data(self, data_list, name):
         print('Storing data files to {}...'.format(name))
-        print('data_list: {}'.format(data_list))
+        # print('data_list: {}'.format(data_list))
         if data_list == []:
             data_list = [Data()]
         data, slices = self.collate(data_list)
         # Create tg processed folder if it doesn't exist
         pr_path = os.path.join(*name.split('/')[:-1])
-        print('pr_path: {}'.format(pr_path))
+        # print('pr_path: {}'.format(pr_path))
         if not os.path.exists(pr_path):
             os.makedirs(pr_path)
         torch.save((data, slices), name)
