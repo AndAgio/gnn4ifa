@@ -340,7 +340,7 @@ def get_out_path():
 
 
 def get_files_list(model='uad'):
-    file_names = glob.glob(os.path.join(os.getcwd(), 'outputs', 'results', model.upper(), '*.pkl'))
+    file_names = glob.glob(os.path.join(os.getcwd(), 'outputs', 'results', model.upper(), 'performance', '*.pkl'))
     return file_names
 
 
@@ -354,9 +354,9 @@ def main():
     print('percentiles: {}'.format(percentiles))
     # Run plotters for uad
     files_list = get_files_list(model='uad')
-    plot_conv_comparison_uad(files_list, topologies, convs, percentiles[-3])
+    # plot_conv_comparison_uad(files_list, topologies, convs, percentiles[-3])
     # plot_percentile_comparison(files_list, topologies, convs[0], percentiles)
-    plot_micro_percentile_comparison(files_list, topologies, convs, percentiles)
+    # plot_micro_percentile_comparison(files_list, topologies, convs, percentiles)
     # Run plotters for sad
     files_list = get_files_list(model='sad')
     pools = ["mean", "sum", "max", "s2s", "att"]
