@@ -356,14 +356,14 @@ def main():
     files_list = get_files_list(model='uad')
     # plot_conv_comparison_uad(files_list, topologies, convs, percentiles[-3])
     # plot_percentile_comparison(files_list, topologies, convs[0], percentiles)
-    # plot_micro_percentile_comparison(files_list, topologies, convs, percentiles)
+    plot_micro_percentile_comparison(files_list, topologies, convs, percentiles)
     # Run plotters for sad
     files_list = get_files_list(model='sad')
     pools = ["mean", "sum", "max", "s2s", "att"]
     mus = [1, 2, 3, 4, 5, 6]
     plot_conv_comparison_sad(files_list, topologies, convs, pools[0], mus[2])
     plot_micro_mu_comparison(files_list, topologies, convs, pools[0], mus)
-    plot_micro_pools_comparison(files_list, topologies, convs, pools, mus[2])
+    # plot_micro_pools_comparison(files_list, topologies, convs, pools, mus[2])
 
 
 if __name__ == '__main__':
