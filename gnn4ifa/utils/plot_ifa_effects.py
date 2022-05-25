@@ -15,7 +15,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import warnings
 
-font = {'size': 22}
+font = {'size': 25}
 matplotlib.rc('font', **font)
 warnings.filterwarnings("ignore")
 
@@ -77,6 +77,7 @@ def plot_ifa_effects(download_folder, scenarios, topologies):
             # print('pit_sizes: {}'.format(pit_sizes))
             # print('satisfaction_rates: {}'.format(satisfaction_rates))
     # Plot distribution
+    print('Plotting...')
     plot_pit_sizes(pit_sizes)
     plot_satisfaction_rate(satisfaction_rates)
 
@@ -100,7 +101,7 @@ def plot_pit_sizes(pit_sizes):
                     #                                                                     freq_name,
                     #                                                                     n_att_name))
                     # print('data: {}'.format(data))
-                    fig, axs = plt.subplots(figsize=(15, 8))
+                    fig, axs = plt.subplots(figsize=(10, 10))
                     colormap = get_cmap(len(list(data.keys())))
                     router_index = 0
                     for router_name, pit_size in data.items():
@@ -115,7 +116,7 @@ def plot_pit_sizes(pit_sizes):
                     axs.set_ylabel('PIT Size')
                     axs.set_xlim(0, 300)
                     axs.set_xlabel('Time (s)')
-                    axs.legend(loc='best', ncol=3, prop={'size': 15})
+                    axs.legend(ncol=3, loc='upper center', bbox_to_anchor=(0.5, -0.2))
                     # Store plot
                     image_name = 'PITS.pdf'
                     image_path = os.path.join(out_path, topo_name, scenario_name, freq_name, n_att_name)
@@ -146,7 +147,7 @@ def plot_satisfaction_rate(pit_sizes):
                     #                                                                     freq_name,
                     #                                                                     n_att_name))
                     # print('data: {}'.format(data))
-                    fig, axs = plt.subplots(figsize=(15, 8))
+                    fig, axs = plt.subplots(figsize=(10, 10))
                     colormap = get_cmap(len(list(data.keys())))
                     consumer_index = 0
                     for consumer_name, satisfaction_rates in data.items():
@@ -161,7 +162,7 @@ def plot_satisfaction_rate(pit_sizes):
                     axs.set_ylabel('Satisfaction Rate (%)')
                     axs.set_xlim(0, 300)
                     axs.set_xlabel('Time (s)')
-                    axs.legend(loc='best', ncol=3, prop={'size': 15})
+                    axs.legend(ncol=3, loc='upper center', bbox_to_anchor=(0.5, -0.2))
                     # Store plot
                     image_name = 'Satisfaction rates.pdf'
                     image_path = os.path.join(out_path, topo_name, scenario_name, freq_name, n_att_name)

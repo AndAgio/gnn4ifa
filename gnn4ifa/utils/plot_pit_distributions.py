@@ -261,7 +261,7 @@ def plot_gaussians_singles(pit_sizes, gauss_dict):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
     for topo_name, topo_dict in pit_sizes.items():
-        fig, axs = plt.subplots(figsize=(10, 8))
+        fig, axs = plt.subplots(figsize=(15, 8))
         axins_head = axs.inset_axes([0.1, 0.5, 0.4, 0.47])
         axins_tail = axs.inset_axes([0.55, 0.5, 0.4, 0.47])
         # Iterate over scenarios passed
@@ -316,7 +316,10 @@ def plot_gaussians_singles(pit_sizes, gauss_dict):
 
                     axs.set_ylim(0, 0.2)
                     axs.set_xlim(0, 1200)
-                    axs.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3, prop={'size': 18})
+                    axs.set_ylabel('PIT size occurrences frequency')
+                    axs.set_xlabel('PIT size')
+                    # axs.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3, prop={'size': 18})
+                    axs.legend(loc='center left', bbox_to_anchor=(1, 0.5), ncol=2, prop={'size': 15})
         image_name = 'PITS_gauss_{}'.format(topo_name)
         image_path = os.path.join(out_path, image_name)
         plt.tight_layout()
@@ -834,7 +837,7 @@ def convert_pit_to_decent_format(file):
 
 def main():
     # Define scenarios for which the distribution plot is required
-    download_folder = 'ifa_data'
+    download_folder = 'ifa_data_with_4'
     # Define scenarios for which the distribution plot is required
     scenarios = ['normal', 'existing']  # , 'non_existing']
     # Define scenarios for which the distribution plot is required

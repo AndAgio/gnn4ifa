@@ -1,10 +1,16 @@
 import glob
 import random
-
 import matplotlib.pyplot as plt
 import networkx as nx
 import os
 import pandas as pd
+import matplotlib
+import warnings
+
+
+font = {'size': 15}
+matplotlib.rc('font', **font)
+warnings.filterwarnings("ignore")
 
 
 def plot_topologies(topologies, save_singles=True):
@@ -23,14 +29,15 @@ def plot_topologies(topologies, save_singles=True):
     topo_index = 0
     for topology_name, topology_data in topologies_dict.items():
         graph = get_graph_structure(topology_data, debug=False)
-        plot_graph(graph, axs[topo_index], node_size=35 if topology_name.split('.')[0] == 'at&t' else 150)
+        plot_graph(graph, axs[topo_index], node_size=35 if topology_name.split('.')[0] == 'large' else 150)
         axs[topo_index].axis('off')
-        title = '{} topology'.format(topology_name.split('.')[0].upper() if topology_name.split('.')[0] != 'small'
-                                     else topology_name.split('.')[0].capitalize())
-        # axs[topo_index].title.set_text(title)
+        title = '{}'.format(topology_name.split('.')[0].upper() if topology_name.split('.')[0] == 'dfn'
+                            else topology_name.split('.')[0].capitalize())
+        axs[topo_index].title.set_text(title)
         topo_index += 1
     # Save generated graph image
     image_path = os.path.join(out_path, 'topologies.pdf')
+    axs[0].legend(scatterpoints=1, loc='center left', bbox_to_anchor=(-0.5, 0.5), prop={'size': 15})
     plt.savefig(image_path)
     plt.show()
     plt.close()
@@ -39,9 +46,10 @@ def plot_topologies(topologies, save_singles=True):
         for topology_name, topology_data in topologies_dict.items():
             graph = get_graph_structure(topology_data, debug=False)
             ax = plt.subplot(111)
-            plot_graph(graph, ax, node_size=35 if topology_name.split('.')[0] == 'at&t' else 150)
+            plot_graph(graph, ax, node_size=35 if topology_name.split('.')[0] == 'large' else 150)
             plt.axis('off')
             image_path = os.path.join(out_path, '{}.pdf'.format(topology_name.split('.')[0]))
+            plt.legend(scatterpoints=1)
             plt.savefig(image_path)
             plt.show()
             plt.close()
@@ -84,21 +92,31 @@ def plot_graph(graph, ax, node_size=150):
     nodes = graph.nodes()
     # print('nodes: {}'.format(nodes))
     colors = [get_color(node) for node in nodes]
-    ec = nx.draw_networkx_edges(graph, pos, alpha=0.9, ax=ax)
-    nc = nx.draw_networkx_nodes(graph, pos, nodelist=nodes, node_color=colors,
-                                node_size=node_size, ax=ax)
+    indices = [i for i, node in enumerate(nodes) if node[:4] == 'Rout']
+    nx.draw_networkx_nodes(graph, pos, nodelist=[list(nodes)[ind] for ind in indices],
+                           node_color=[colors[ind] for ind in indices],
+                           node_size=node_size, ax=ax, label='Routers')
+    indices = [i for i, node in enumerate(nodes) if node[:4] == 'Prod']
+    nx.draw_networkx_nodes(graph, pos, nodelist=[list(nodes)[ind] for ind in indices],
+                           node_color=[colors[ind] for ind in indices],
+                           node_size=node_size, ax=ax, label='Producers')
+    indices = [i for i, node in enumerate(nodes) if node[:4] == 'Cons']
+    nx.draw_networkx_nodes(graph, pos, nodelist=[list(nodes)[ind] for ind in indices],
+                           node_color=[colors[ind] for ind in indices],
+                           node_size=node_size, ax=ax, label='Consumers')
+    nx.draw_networkx_edges(graph, pos, alpha=0.9, ax=ax)
 
 
 def get_color(node_name):
     node_type = node_name[:4]
-    node_colors = {'Rout': (166/255, 206/255, 227/255),
-                   'Prod': (31/255, 120/255, 180/255),
-                   'Cons': (178/255, 223/255, 138/255), }
+    node_colors = {'Rout': (166 / 255, 206 / 255, 227 / 255),
+                   'Prod': (31 / 255, 120 / 255, 180 / 255),
+                   'Cons': (178 / 255, 223 / 255, 138 / 255), }
     return node_colors[node_type]
 
 
 def random_sample_producers_from_large_topology(files, n_producers=2):
-    large_file = [file for file in files if file.split('/')[-1] == 'format-at&t.txt'][0]
+    large_file = [file for file in files if file.split('/')[-1] == 'format-large.txt'][0]
     file_data = pd.read_csv(large_file, sep='\t', index_col=False)
     nodes = list(set(file_data["Source"].tolist() + file_data["Destination"].tolist()))
     consumers = [node for node in nodes if node[:4] == 'Cons']
@@ -183,7 +201,7 @@ def convert_topology_to_decent_format(file):
 
 def main():
     # Define scenarios for which the distribution plot is required
-    topologies = ['small', 'dfn', 'at&t']
+    topologies = ['small', 'dfn', 'large']
     # Run distribution plotter
     plot_topologies(topologies)
     delete_formatted_files()
