@@ -109,7 +109,7 @@ class Tester():
                                        download_folder=self.download_dataset_folder,
                                        transform=transform,
                                        # scenario='all' if self.mode == 'class' else self.train_scenario,
-                                       scenario=self.train_scenario,
+                                       scenario=self.test_scenario,  # self.train_scenario,
                                        topology=self.test_topology,
                                        train_sim_ids=self.train_sim_ids if self.mode == 'class' else [0],
                                        val_sim_ids=self.val_sim_ids if self.mode == 'class' else [0],

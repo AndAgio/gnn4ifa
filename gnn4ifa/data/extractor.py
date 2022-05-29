@@ -62,6 +62,26 @@ class Extractor():
             file_data = pd.read_csv(file, sep='\t', index_col=False)
             # Put data in dictionary
             data[file_type] = file_data
+
+        def refine_routers_names(name):
+            try:
+                if 'gw-' in name or 'bb-' in name:
+                    if 'PIT' in name:
+                        return 'PIT_' + name.split('-')[-1]
+                    else:
+                        return 'Rout' + name.split('-')[-1]
+                else:
+                    return name
+            except TypeError:
+                # print(f'\nname: {name}\n')
+                return name
+
+        for elm, dtf in data.items():
+            # print('elm: {}'.format(elm))
+            # print('dtf: {}'.format(dtf))
+            if elm != 'topology':
+                # print('dtf[\'Node\']: {}'.format(dtf['Node']))
+                dtf['Node'] = dtf['Node'].apply(refine_routers_names)
         return data
 
     @staticmethod
@@ -113,9 +133,14 @@ class Extractor():
 
     @staticmethod
     def get_router_names(data):
+        # print(f'data: {data}')
+        # print(f'data.keys(): {data.keys()}')
         data = Extractor.remove_topo_data_from_dict(data)
+        # print(f'data: {data}')
+        # print(f'data.keys(): {data.keys()}')
         # Get names of transmitter devices
         routers_names = data['rate']['Node'].unique()
+        # print('names: {}'.format(routers_names))
         # Consider routers only
         routers_names = [i for i in routers_names if 'Rout' in i]
         # print('routers_names: {}'.format(routers_names))
@@ -168,11 +193,22 @@ class Extractor():
         with open(new_file, 'w') as f:
             f.write('Source\tDestination\n')
             for item in final_lines:
+                # Keep only source & destination and remove gw- & bb- from large routers names
+                # print('item: {}'.format(item))
+                splits = item.split()
+                src = splits[0]
+                if 'gw-' in src or 'bb-' in src:
+                    src = 'Rout' + src.split('-')[-1]
+                dst = splits[1]
+                if 'gw-' in dst or 'bb-' in dst:
+                    dst = 'Rout' + dst.split('-')[-1]
+                item = '{}\t{}\n'.format(src, dst)
+                # print('formatted item: {}'.format(item))
                 f.write(item)
         return new_file
 
     @staticmethod
-    def get_graph_structure(topology_lines_dataframe, debug=False):
+    def get_graph_structure(topology_lines_dataframe, routers_names, debug=False):
         # Open file containing train_topology structure
         # topology_file = os.path.join(self.data_dir, 'topologies', '{}_topology.txt'.format(self.topology))
         # router_links = []
@@ -186,10 +222,14 @@ class Extractor():
         for index, row in topology_lines_dataframe.iterrows():
             source = row['Source']
             dest = row['Destination']
-            if source[:4] == 'Rout' and dest[:4] == 'Rout':
+            if source in routers_names and dest in routers_names:  # source[:4] == 'Rout' and dest[:4] == 'Rout':
                 router_links.append([source[4:], dest[4:]])
         # print('router_links: {}'.format(router_links))
         list_of_nodes = list(set([elem for link in router_links for elem in link]))
+        for node in routers_names:
+            if node.split('Rout')[-1] not in list_of_nodes:
+                # print('Node not found is: {}'.format(node))
+                pass
         # Use nx to obtain the graph corresponding to the graph
         graph = nx.DiGraph()
         # Build the DODAG graph from nodes and edges lists
@@ -207,7 +247,7 @@ class Extractor():
         return graph
 
     @staticmethod
-    def get_node_features(data, node_name, mode='array'):
+    def get_node_features(data, node_name, routers_names, mode='array'):
         if mode == 'array':
             features = np.zeros((12), dtype=float)
         elif mode == 'dict':
@@ -220,6 +260,26 @@ class Extractor():
         drop_data = data['drop']
         # Get pit size of router at hand
         router_index = node_name.split('Rout')[-1]
+        # print('data: {}'.format(data))
+        # print('node_name: {}'.format(node_name))
+        # print('router_index: {}'.format(router_index))
+        # print(pit_data[pit_data['Node'] == 'PIT_{}'.format(router_index)])
+        # print(pit_data[pit_data['Node'] == 'PIT_{}'.format(router_index)]['Size'])
+        list_of_nodes_in_pit = pit_data['Node'].tolist()
+        # print('len of list_of_nodes_in_pit: {}'.format(len(list_of_nodes_in_pit)))
+        # print('len of list_of_nodes_in_pit without duplicates: {}'.format(len(list(set(list_of_nodes_in_pit)))))
+        dupes = [x for n, x in enumerate(list_of_nodes_in_pit) if x in list_of_nodes_in_pit[:n]]
+        # print('duplicates: {}'.format(dupes))
+        # print('len of duplicates: {}'.format(len(dupes)))
+        indices_in_pit = [name.split('_')[-1] for name in list_of_nodes_in_pit]
+        indices_in_routers = [name.split('Rout')[-1] for name in routers_names]
+        # print('indices_in_pit: {}'.format(indices_in_pit))
+        # print('indices_in_routers: {}'.format(indices_in_routers))
+        indices_in_pit_but_not_in_topology = list(set(indices_in_pit) - set(indices_in_routers))
+        # print('indices_in_pit_but_not_in_topology: {}'.format(indices_in_pit_but_not_in_topology))
+        indices_in_topology_but_not_in_pit = list(set(indices_in_routers) - set(indices_in_pit))
+        # print('indices_in_topology_but_not_in_pit: {}'.format(indices_in_topology_but_not_in_pit))
+
         pit_size = pit_data[pit_data['Node'] == 'PIT_{}'.format(router_index)]['Size'].item()
         features[0 if mode == 'array' else 'pit_size'] = pit_size
         # Get drop rate of router at hand
@@ -310,7 +370,8 @@ class Extractor():
         # Iterate over each node and get their features
         for node_index, node_name in enumerate(nodes_names):
             features = self.get_node_features(data=data,
-                                              node_name=node_name)
+                                              node_name=node_name,
+                                              routers_names=nodes_names)
             nodes_features[node_name.split('Rout')[-1]] = features
         # print('nodes_features shape: {}'.format(nodes_features.shape))
         # Return nodes_features
@@ -377,12 +438,15 @@ class Extractor():
         # print(f'simulation_time: {simulation_time}')
         return simulation_time
 
-    def extract_graphs_from_simulation_files(self, simulation_files, simulation_index, total_simulations, split):
+    def extract_graphs_from_simulation_files(self, simulation_files, simulation_index,
+                                             total_simulations, split, debug=False):
         # print('simulation_files: {}'.format(simulation_files))
         # Extract data from the considered simulation
         data = self.get_data(simulation_files)
         # Get names of nodes inside a simulation
         routers_names = self.get_router_names(data)
+        # print('routers_names: {}'.format(routers_names))
+        # print('len of routers: {}'.format(len(routers_names)))
         # Define start time as one
         start_time = 1
         # Define empty list containing all graphs found in a simulation
@@ -445,7 +509,8 @@ class Extractor():
             #     continue
             # print(f'data: {data}')
             # Get graph of the network during the current time window
-            graph = self.get_graph_structure(topology_lines_dataframe=data['topology'])
+            graph = self.get_graph_structure(topology_lines_dataframe=data['topology'],
+                                             routers_names=routers_names)
             if self.differential:
                 # If differential is required compute difference between current time window and previous time window
                 if time == start_time:
@@ -473,6 +538,7 @@ class Extractor():
                 graph.nodes[node_name]['x'] = nodes_features[node_name]
             # Debugging purposes
             # print('graph.nodes.data(): {}'.format(graph.nodes.data()))
+            # print('\n\n\nnumber of routers: {}\n\n\n'.format(len(graph.nodes.data())))
             # Add labels to the graph as graph and nodes attributes
             graph = self.insert_labels(graph,
                                        time=time,
@@ -482,9 +548,12 @@ class Extractor():
                                        attackers=attackers,
                                        n_attackers=n_attackers)
             # Debugging purposes
-            # print('graph.graph: {}'.format(graph.graph))
-            # print('graph.nodes.data(): {}'.format(graph.nodes.data()))
-            # print('graph.edges.data(): {}'.format(graph.edges.data()))
+            if debug:
+                print('graph.graph: {}'.format(graph.graph))
+                print('graph.nodes.data(): {}'.format(graph.nodes.data()))
+                print('graph.edges.data(): {}'.format(graph.edges.data()))
+                nx.draw(graph, with_labels=True)
+                plt.show()
             # Convert networkx graph into torch_geometric
             tg_graph = tg.utils.from_networkx(graph)
             # Add graph labels to the tg_graph
@@ -515,6 +584,11 @@ class Extractor():
     def split_files(self, files):
         # Split files depending on the train ids
         # print('files: {}'.format(files))
+        # for file in files:
+        #     try:
+        #         int(file.split('-')[-1].split('.')[0])
+        #     except ValueError:
+        #         print('File raising error is: {}'.format(file))
         train_files = [file for file in files if int(file.split('-')[-1].split('.')[0]) in self.train_sim_ids]
         # print('train_files: {}'.format(train_files))
         val_files = [file for file in files if int(file.split('-')[-1].split('.')[0]) in self.val_sim_ids]
@@ -564,7 +638,7 @@ class Extractor():
                             split = 'train'
                             simulation_indices = self.train_sim_ids
                         elif index == 1:
-                            split = 'validation'
+                            split = 'val'
                             simulation_indices = self.val_sim_ids
                         elif index == 2:
                             split = 'test'
@@ -575,6 +649,8 @@ class Extractor():
                             simulation_files = [file for file in n_att_files if
                                                 int(file.split('-')[-1].split('.')[0]) == simulation_index]
                             # print('simulation files: {}'.format(simulation_files))
+                            if not simulation_files:
+                                continue
                             # Extract graphs from single simulation
                             tg_graphs = self.extract_graphs_from_simulation_files(simulation_files=simulation_files,
                                                                                   simulation_index=s_index + 1,

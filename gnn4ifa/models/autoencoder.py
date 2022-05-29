@@ -14,6 +14,9 @@ class AutoEncoder(torch.nn.Module):
         assert conv_type in ['gcn', 'gat', 'cheb', 'gin', 'tag', 'sg']
         self.n_encoding_layers = n_encoding_layers
         self.n_decoding_layers = n_decoding_layers
+        print(f'n_encoding_layers: {n_encoding_layers}')
+        print(f'n_decoding_layers: {n_decoding_layers}')
+        print(f'hidden_dim: {hidden_dim}')
         # Define layers for encoding
         self.encoding_convs = torch.nn.ModuleList()
         for index in range(n_encoding_layers):

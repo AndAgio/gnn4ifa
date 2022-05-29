@@ -47,7 +47,7 @@ class IfaDataset(InMemoryDataset):
         self.download_folder = download_folder
         assert scenario in ['existing', 'non_existing', 'normal', 'all']
         self.scenario = scenario
-        assert topology in ['small', 'dfn']
+        assert topology in ['small', 'dfn', 'large']
         self.topology = topology
         # assert n_attackers is not None
         self.n_attackers = n_attackers
@@ -94,30 +94,31 @@ class IfaDataset(InMemoryDataset):
 
     @property
     def download_file_names(self):
-        if self.scenario == 'existing' and self.topology == 'dfn':
-            frequencies = ['4x', '8x', '16x', '32x']
-        elif self.scenario == 'existing' and self.topology == 'small':
-            frequencies = ['4x', '8x', '16x', '32x', '64x']
-        elif self.scenario == 'non_existing' and self.topology == 'dfn':
-            raise FileNotFoundError(
-                'Scenario {} and train_topology {} are incompatible at the moment'.format(self.scenario,
-                                                                                          self.topology))
-        elif self.scenario == 'non_existing' and self.topology == 'small':
-            frequencies = ['16x', '32x', '64x', '128x', '256x']
-        elif self.scenario == 'normal':
-            frequencies = None
-        elif self.scenario == 'all':
-            frequencies = None
-        else:
-            raise ValueError('Something wrong with train_scenario {} and train_topology {}'.format(self.scenario,
-                                                                                                   self.topology))
-        # Define files that should be available as raw in the dataset
-        names = ['drop-trace', 'pit-size', 'rate-trace']
-        if frequencies:
-            file_names = ['{}/{}-{}.txt'.format(freq, name, index) for freq in frequencies for name in names for index
-                          in range(1, 6)]
-        else:
-            file_names = ['{}-{}.txt'.format(name, index) for name in names for index in range(1, 6)]
+        # if self.scenario == 'existing' and self.topology == 'dfn':
+        #     frequencies = ['4x', '8x', '16x', '32x']
+        # elif self.scenario == 'existing' and self.topology == 'small':
+        #     frequencies = ['4x', '8x', '16x', '32x', '64x']
+        # elif self.scenario == 'non_existing' and self.topology == 'dfn':
+        #     raise FileNotFoundError(
+        #         'Scenario {} and train_topology {} are incompatible at the moment'.format(self.scenario,
+        #                                                                                   self.topology))
+        # elif self.scenario == 'non_existing' and self.topology == 'small':
+        #     frequencies = ['16x', '32x', '64x', '128x', '256x']
+        # elif self.scenario == 'normal':
+        #     frequencies = None
+        # elif self.scenario == 'all':
+        #     frequencies = None
+        # else:
+        #     raise ValueError('Something wrong with train_scenario {} and train_topology {}'.format(self.scenario,
+        #                                                                                            self.topology))
+        # # Define files that should be available as raw in the dataset
+        # names = ['drop-trace', 'pit-size', 'rate-trace']
+        # if frequencies:
+        #     file_names = ['{}/{}-{}.txt'.format(freq, name, index) for freq in frequencies for name in names for index
+        #                   in range(1, 6)]
+        # else:
+        #     file_names = ['{}-{}.txt'.format(name, index) for name in names for index in range(1, 6)]
+        file_names = ['filefilefile']
         return file_names
 
     @property
@@ -172,6 +173,7 @@ class IfaDataset(InMemoryDataset):
                 if self.topology != 'dfn' else '{}_topology'.format(self.topology.upper()))
             file_names += glob.glob(os.path.join(dwn_dir, '*.txt'))
         elif self.scenario != 'normal':
+            # print('self.download_dir: {}'.format(self.download_dir))
             file_names = glob.glob(os.path.join(self.download_dir, '*', '*', '*', '*.txt'))
         else:
             file_names = glob.glob(os.path.join(self.download_dir, '*.txt'))
@@ -179,6 +181,7 @@ class IfaDataset(InMemoryDataset):
 
     def convert_dataset_to_tg_graphs(self):
         file_names = self.read_files()
+        # print('file names: {}'.format(file_names))
         # Rename topology files if they exist
         Extractor.rename_topology_files(file_names)
         file_names = self.read_files()

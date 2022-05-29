@@ -121,6 +121,8 @@ class Trainer():
         # print('self.train_dataset[0]: {}'.format(self.train_dataset[0]))
         print('Number of training examples: {}'.format(len(self.train_dataset)))
         if self.differential:
+            # print('self.train_dataset[0]: {}'.format(self.train_dataset[0]))
+            print('Normal samples: {}'.format(self.train_dataset.get_only_normal_data(frequencies=self.frequencies)))
             self.train_loader = get_data_loader(
                 # self.train_dataset.get_all_legitimate_data(frequencies=self.frequencies),
                 self.train_dataset.get_only_normal_data(frequencies=self.frequencies),
