@@ -708,7 +708,7 @@ class Datasetter:
                 dataframe = pd.DataFrame.from_dict(data_dict)
                 # Store list of tg graphs in the raw folder of the tg dataset
                 folder = '/' + os.path.join(*self.out_file.split('/')[:-1])
-                print('split: {}'.format(split))
+                # print('split: {}'.format(split))
                 folder = os.path.join(folder, split)
                 file_name = self.out_file.split('/')[-1] + '_{}_{}_{}'.format(self.mode,
                                                                            self.topology,
@@ -724,5 +724,5 @@ class Datasetter:
                                                                    self.topology,
                                                                    self.train_sim_ids if split=='train' else self.val_sim_ids if split=='val' else self.test_sim_ids)
         data_set = pd.read_json(os.path.join(folder, '{}.json'.format(file_name)))
-        print('dataset for split {} is: {}'.format(data_set, split))
+        # print('dataset for split {} is: {}'.format(data_set, split))
         return data_set

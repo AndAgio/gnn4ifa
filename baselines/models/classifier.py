@@ -111,12 +111,12 @@ class Classifier:
     def extract_features_and_labels(self, dataset):
         if self.data_mode == 'avg':
             for feat in self.feat_set:
-                print('dataset[feat]: {}'.format(dataset[feat]))
+                # print('dataset[feat]: {}'.format(dataset[feat]))
                 dataset[feat] = (dataset[feat] - dataset[feat].min()) / \
                                 (dataset[feat].max() - dataset[feat].min())
                 # dataset[feat] = (dataset[feat] - dataset[feat].mean()) / dataset[feat].std()
                 dataset = dataset.fillna(0)
-                print('dataset[feat]: {}'.format(dataset[feat]))
+                # print('dataset[feat]: {}'.format(dataset[feat]))
             dataset['feat_vector'] = dataset.apply(lambda row: self.concat_features(row), axis=1)
             features = [np.asarray(feat_vector) for feat_vector in dataset['feat_vector']]
             labels = [np.asarray(label, dtype=np.int8) for label in dataset['attack_is_on']]
