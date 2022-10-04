@@ -633,8 +633,9 @@ class Datasetter:
     def check_file_available(self):
         for split in ['train', 'val', 'test']:
             folder = os.path.join('/' + os.path.join(*self.out_file.split('/')[:-1]), split)
-            file_name = self.out_file.split('/')[-1] + '_{}_{}'.format(self.mode,
-                                                                       self.topology)
+            file_name = self.out_file.split('/')[-1] + '_{}_{}_{}'.format(self.mode,
+                                                                       self.topology,
+                                                                          self.train_sim_ids if split=='train' else self.val_sim_ids if split=='val' else self.test_sim_ids)
             file = os.path.join(folder, '{}.json'.format(file_name))
             if not os.path.exists(file):
                 print('File {} not found, extracting it...'.format(file))
@@ -709,8 +710,9 @@ class Datasetter:
                 folder = '/' + os.path.join(*self.out_file.split('/')[:-1])
                 print('split: {}'.format(split))
                 folder = os.path.join(folder, split)
-                file_name = self.out_file.split('/')[-1] + '_{}_{}'.format(self.mode,
-                                                                           self.topology)
+                file_name = self.out_file.split('/')[-1] + '_{}_{}_{}'.format(self.mode,
+                                                                           self.topology,
+                                                                              self.train_sim_ids if split=='train' else self.val_sim_ids if split=='val' else self.test_sim_ids)
                 self.store_json(data_dict,
                                 folder=folder,
                                 file_name=file_name)
@@ -718,8 +720,9 @@ class Datasetter:
     def read_split(self, split):
         folder = '/' + os.path.join(*self.out_file.split('/')[:-1])
         folder = os.path.join(folder, split)
-        file_name = self.out_file.split('/')[-1] + '_{}_{}'.format(self.mode,
-                                                                   self.topology)
+        file_name = self.out_file.split('/')[-1] + '_{}_{}_{}'.format(self.mode,
+                                                                   self.topology,
+                                                                   self.train_sim_ids if split=='train' else self.val_sim_ids if split=='val' else self.test_sim_ids)
         data_set = pd.read_json(os.path.join(folder, '{}.json'.format(file_name)))
         print('dataset for split {} is: {}'.format(data_set, split))
         return data_set

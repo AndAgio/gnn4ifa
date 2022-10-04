@@ -25,9 +25,9 @@ def gather_settings():
                         help='Frequencies of attacks in the simulations to be used as training')
     parser.add_argument('--train_sims', nargs="+", type=int, default=[1],#[1, 2, 3],
                         help='IDs list of simulations to be used as training')
-    parser.add_argument('--val_sims', nargs="+", type=int, default=[2],#[4],
+    parser.add_argument('--val_sims', nargs="+", type=int, default=[2,3],#[4],
                         help='IDs list of simulations to be used as validation')
-    parser.add_argument('--test_sims', nargs="+", type=int, default=[2],#[5],
+    parser.add_argument('--test_sims', nargs="+", type=int, default=[4,5],#[5],
                         help='IDs list of simulations to be used as test')
     parser.add_argument('--sim_time', type=int, default=300,
                         help='Time of simulations')
