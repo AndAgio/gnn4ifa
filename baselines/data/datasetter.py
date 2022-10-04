@@ -364,7 +364,8 @@ class Datasetter:
             for feat_name, feat_value in features.items():
                 nodes_features[feat_name] /= (node_index + 1)
         elif self.mode == 'cat':
-            nodes_features['feat_vector'] = [elem for feat_vector in nodes_features['feat_vector'] for elem in feat_vector]
+            nodes_features['feat_vector'] = [elem for feat_vector in nodes_features['feat_vector'] for elem in
+                                             feat_vector]
         # print('nodes_features shape: {}'.format(nodes_features.shape))
         # print('nodes_features: {}'.format(nodes_features))
         # Return nodes_features
@@ -526,7 +527,7 @@ class Datasetter:
                                                      data=filtered_data)
             # Add labels to the graph as graph and nodes attributes
             nodes_data = self.insert_labels(nodes_data,
-                                            n_cycles=1 if self.mode in ['agg', 'avg'] else len(routers_names),
+                                            n_cycles=1 if self.mode in ['cat', 'avg'] else len(routers_names),
                                             time=time,
                                             topology=self.topology,
                                             scenario=scenario,
@@ -629,80 +630,96 @@ class Datasetter:
                                                                  self.topology.upper())), '*.txt'))
         return file_names
 
+    def check_file_available(self):
+        for split in ['train', 'val', 'test']:
+            folder = os.path.join('/' + os.path.join(*self.out_file.split('/')[:-1]), split)
+            file_name = self.out_file.split('/')[-1] + '_{}_{}'.format(self.mode,
+                                                                       self.topology)
+            file = os.path.join(folder, '{}.json'.format(file_name))
+            if not os.path.exists(file):
+                print('File {} not found, extracting it...'.format(file))
+                return False
+        print('All files containing formatted dataset were found, we will use them...')
+        return True
+
     @timeit
     def run(self, debug=False):
-        # print('\nraw_file_names: {}\n'.format(raw_file_names))
-        # downloaded_data_file = Datasetter.rename_topology_files(downloaded_data_file)
-        downloaded_data_file = self.read_files()
-        print('downloaded_data_file: {}'.format(downloaded_data_file))
-        # Split the received files into train, validation and test
-        files_lists = self.split_files(downloaded_data_file)
-        # Iterate over train validation and test and get graph samples
-        print('Extracting data from each simulation of each split. This may take a while...')
-        for index, files in enumerate(files_lists):
-            data_dict = self.build_empty_data_dict()
-            split = None
-            # Get attackers mode
-            att_modes = set([file.split('/')[-4].split('_')[0] for file in files])
-            for att_mode in att_modes:
-                att_files = [file for file in files if file.split('/')[-4].split('_')[0] == att_mode]
-                # Iterate over frequencies
-                frequencies = np.unique([file.split('/')[-3].split('x')[0] for file in att_files])
-                # print('frequencies: {}'.format(frequencies))
-                for frequence in frequencies:
-                    freq_files = [file for file in att_files if file.split('/')[-3].split('x')[0] == frequence]
-                    # print('freq_files: {}'.format(freq_files))
-                    # Iterate over number of attackers
-                    n_atts = set([file.split('/')[-2].split('_')[0] for file in freq_files])
-                    for n_att in n_atts:
-                        n_att_files = [file for file in freq_files if file.split('/')[-2].split('_')[0] == n_att]
-                        # Iterating over index of simulations
-                        if index == 0:
-                            split = 'train'
-                            simulation_indices = self.train_sim_ids
-                        elif index == 1:
-                            split = 'val'
-                            simulation_indices = self.val_sim_ids
-                        elif index == 2:
-                            split = 'test'
-                            simulation_indices = self.test_sim_ids
-                        else:
-                            raise ValueError('Something went wrong with simulation indices')
-                        for s_index, simulation_index in enumerate(simulation_indices):
-                            simulation_files = [file for file in n_att_files if
-                                                int(file.split('-')[-1].split('.')[0]) == simulation_index]
-                            # print('simulation files: {}'.format(simulation_files))
-                            if not simulation_files:
-                                continue
-                            # Extract graphs from single simulation
-                            data_dict = self.extract_data_dict_from_simulation_files(data_dict=data_dict,
-                                                                                     simulation_files=simulation_files,
-                                                                                     simulation_index=s_index + 1,
-                                                                                     total_simulations=len(
-                                                                                         simulation_indices),
-                                                                                     split=split)
-            # Close info line
-            print()
-            if debug:
-                for key, values in data_dict.items():
-                    # if key in ['out_nacks', 'time']:
-                    #     print('key: {} -> values: {}'.format(key, values))
-                    print('key: {} -> n values: {}'.format(key, len(values)))
-            # Convert dictionary to dataframe
-            dataframe = pd.DataFrame.from_dict(data_dict)
-            # Store list of tg graphs in the raw folder of the tg dataset
-            folder = '/' + os.path.join(*self.out_file.split('/')[:-1])
-            print('split: {}'.format(split))
-            folder = os.path.join(folder, split)
-            file_name = self.out_file.split('/')[-1] + '_{}'.format(self.mode)
-            self.store_json(data_dict,
-                            folder=folder,
-                            file_name=file_name)
+        formatted_files_available = self.check_file_available()
+        if not formatted_files_available:
+            # print('\nraw_file_names: {}\n'.format(raw_file_names))
+            # downloaded_data_file = Datasetter.rename_topology_files(downloaded_data_file)
+            downloaded_data_file = self.read_files()
+            # print('downloaded_data_file: {}'.format(downloaded_data_file))
+            # Split the received files into train, validation and test
+            files_lists = self.split_files(downloaded_data_file)
+            # Iterate over train validation and test and get graph samples
+            print('Extracting data from each simulation of each split. This may take a while...')
+            for index, files in enumerate(files_lists):
+                data_dict = self.build_empty_data_dict()
+                split = None
+                # Get attackers mode
+                att_modes = set([file.split('/')[-4].split('_')[0] for file in files])
+                for att_mode in att_modes:
+                    att_files = [file for file in files if file.split('/')[-4].split('_')[0] == att_mode]
+                    # Iterate over frequencies
+                    frequencies = np.unique([file.split('/')[-3].split('x')[0] for file in att_files])
+                    # print('frequencies: {}'.format(frequencies))
+                    for frequence in frequencies:
+                        freq_files = [file for file in att_files if file.split('/')[-3].split('x')[0] == frequence]
+                        # print('freq_files: {}'.format(freq_files))
+                        # Iterate over number of attackers
+                        n_atts = set([file.split('/')[-2].split('_')[0] for file in freq_files])
+                        for n_att in n_atts:
+                            n_att_files = [file for file in freq_files if file.split('/')[-2].split('_')[0] == n_att]
+                            # Iterating over index of simulations
+                            if index == 0:
+                                split = 'train'
+                                simulation_indices = self.train_sim_ids
+                            elif index == 1:
+                                split = 'val'
+                                simulation_indices = self.val_sim_ids
+                            elif index == 2:
+                                split = 'test'
+                                simulation_indices = self.test_sim_ids
+                            else:
+                                raise ValueError('Something went wrong with simulation indices')
+                            for s_index, simulation_index in enumerate(simulation_indices):
+                                simulation_files = [file for file in n_att_files if
+                                                    int(file.split('-')[-1].split('.')[0]) == simulation_index]
+                                # print('simulation files: {}'.format(simulation_files))
+                                if not simulation_files:
+                                    continue
+                                # Extract graphs from single simulation
+                                data_dict = self.extract_data_dict_from_simulation_files(data_dict=data_dict,
+                                                                                         simulation_files=simulation_files,
+                                                                                         simulation_index=s_index + 1,
+                                                                                         total_simulations=len(
+                                                                                             simulation_indices),
+                                                                                         split=split)
+                # Close info line
+                print()
+                if debug:
+                    for key, values in data_dict.items():
+                        # if key in ['out_nacks', 'time']:
+                        #     print('key: {} -> values: {}'.format(key, values))
+                        print('key: {} -> n values: {}'.format(key, len(values)))
+                # Convert dictionary to dataframe
+                dataframe = pd.DataFrame.from_dict(data_dict)
+                # Store list of tg graphs in the raw folder of the tg dataset
+                folder = '/' + os.path.join(*self.out_file.split('/')[:-1])
+                print('split: {}'.format(split))
+                folder = os.path.join(folder, split)
+                file_name = self.out_file.split('/')[-1] + '_{}_{}'.format(self.mode,
+                                                                           self.topology)
+                self.store_json(data_dict,
+                                folder=folder,
+                                file_name=file_name)
 
     def read_split(self, split):
         folder = '/' + os.path.join(*self.out_file.split('/')[:-1])
         folder = os.path.join(folder, split)
-        file_name = self.out_file.split('/')[-1] + '_{}'.format(self.mode)
+        file_name = self.out_file.split('/')[-1] + '_{}_{}'.format(self.mode,
+                                                                   self.topology)
         data_set = pd.read_json(os.path.join(folder, '{}.json'.format(file_name)))
         print('dataset for split {} is: {}'.format(data_set, split))
         return data_set

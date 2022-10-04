@@ -2,6 +2,8 @@
 outputs
 outputs backup
 ifa_data
+Users
+outputs_base
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
