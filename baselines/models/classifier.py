@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn import svm, tree
+from sklearn import svm, tree, neural_network, ensemble, naive_bayes
 
 
 class Classifier:
@@ -32,9 +32,46 @@ class Classifier:
                 raise ValueError('Data mode {} is not available!'.format(self.data_mode))
         elif self.chosen_model == 'tree':
             if self.data_mode in ['avg', 'cat']:
-                self.model = tree.DecisionTreeClassifier()
+                self.model = tree.DecisionTreeClassifier(max_depth=10)
             elif self.data_mode == 'single':
-                self.model = {rout: tree.DecisionTreeClassifier() for rout in self.routers}
+                self.model = {rout: tree.DecisionTreeClassifier(max_depth=10) for rout in self.routers}
+            else:
+                raise ValueError('Data mode {} is not available!'.format(self.data_mode))
+        elif self.chosen_model == 'mlp':
+            if self.data_mode in ['avg', 'cat']:
+                self.model = neural_network.MLPClassifier(solver='adam',
+                                                          max_iter=100,
+                                                          learning_rate='adaptive',
+                                                          learning_rate_init=0.01,
+                                                          alpha=1e-5,
+                                                          hidden_layer_sizes=(100, 2),
+                                                          random_state=1)
+            elif self.data_mode == 'single':
+                self.model = {rout: neural_network.MLPClassifier(solver='adam',
+                                                                 max_iter=100,
+                                                                 learning_rate='adaptive',
+                                                                 learning_rate_init=0.01,
+                                                                 alpha=1e-5,
+                                                                 hidden_layer_sizes=(100, 2),
+                                                                 random_state=1) for rout in self.routers}
+            else:
+                raise ValueError('Data mode {} is not available!'.format(self.data_mode))
+        elif self.chosen_model == 'forest':
+            if self.data_mode in ['avg', 'cat']:
+                self.model = ensemble.RandomForestClassifier(n_estimators=200,
+                                                             max_depth=10,
+                                                             random_state=1)
+            elif self.data_mode == 'single':
+                self.model = {rout: ensemble.RandomForestClassifier(n_estimators=200,
+                                                                    max_depth=10,
+                                                                    random_state=1) for rout in self.routers}
+            else:
+                raise ValueError('Data mode {} is not available!'.format(self.data_mode))
+        elif self.chosen_model == 'bayes':
+            if self.data_mode in ['avg', 'cat']:
+                self.model = naive_bayes.MultinomialNB()
+            elif self.data_mode == 'single':
+                self.model = {rout: naive_bayes.MultinomialNB() for rout in self.routers}
             else:
                 raise ValueError('Data mode {} is not available!'.format(self.data_mode))
         else:
@@ -61,7 +98,7 @@ class Classifier:
                 scores[metric_name] = metric_object.compute(y_pred=predictions,
                                                             y_true=labels)
                 if verbose:
-                    print('Metrics {}={:.3f}'.format(metric_name, scores[metric_name]*100))
+                    print('Metrics {}={:.3f}'.format(metric_name, scores[metric_name] * 100))
         elif self.data_mode in ['single']:
             raise ValueError('Fitting for model {} and data mode {} is not available yet!'.format(self.chosen_model,
                                                                                                   self.data_mode))
@@ -76,7 +113,7 @@ class Classifier:
             for feat in self.feat_set:
                 print('dataset[feat]: {}'.format(dataset[feat]))
                 dataset[feat] = (dataset[feat] - dataset[feat].min()) / \
-                                      (dataset[feat].max() - dataset[feat].min())
+                                (dataset[feat].max() - dataset[feat].min())
                 # dataset[feat] = (dataset[feat] - dataset[feat].mean()) / dataset[feat].std()
                 dataset = dataset.fillna(0)
                 print('dataset[feat]: {}'.format(dataset[feat]))

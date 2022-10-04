@@ -1,4 +1,5 @@
 from sklearn.metrics import accuracy_score
+from .utils import perf_measure
 
 
 class Accuracy:
@@ -8,8 +9,11 @@ class Accuracy:
     def compute(self, y_true, y_pred):
         # Compute score and return it
         if self.data_mode in ['avg', 'cat']:
-            score = accuracy_score(y_true=y_true,
-                                   y_pred=y_pred)
+            true_pos, false_pos, true_neg, false_neg = perf_measure(y_true=y_true,
+                                                                    y_pred=y_pred)
+            score = (true_pos+true_neg)/(true_pos+false_pos+false_neg+true_neg)
+            # score = accuracy_score(y_true=y_true,
+            #                        y_pred=y_pred)
             return score
         else:
             raise ValueError('Data mode {} not available yet!'.format(self.data_mode))

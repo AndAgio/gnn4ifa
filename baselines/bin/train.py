@@ -42,7 +42,7 @@ class Trainer():
         self.simulation_time = simulation_time
         self.time_att_start = time_att_start
         # Model related variables
-        if chosen_model in ['svm', 'tree']:
+        if chosen_model in ['svm', 'tree', 'mlp', 'forest', 'bayes']:
             self.mode = 'class'
             # Metrics related features
             self.chosen_metrics = ['acc', 'f1', 'tpr', 'fpr', 'precision']
