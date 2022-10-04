@@ -6,7 +6,7 @@ import pickle
 # Import my modules
 from baselines.data import Datasetter
 from baselines.models import Classifier
-from baselines.metrics import Accuracy, F1Score
+from baselines.metrics import Accuracy, F1Score, Tpr, Fpr, Precision
 from baselines.utils import get_labels_scenario_dict, get_labels_attacker_type_dict, get_labels_topology_dict
 
 
@@ -45,9 +45,7 @@ class Trainer():
         if chosen_model in ['svm', 'tree']:
             self.mode = 'class'
             # Metrics related features
-            self.chosen_metrics = ['acc', 'f1']
-            self.metric_to_check = 'acc'
-            self.lr_metric_to_check = 'acc'
+            self.chosen_metrics = ['acc', 'f1', 'tpr', 'fpr', 'precision']
         # elif chosen_model.split('_')[0] == 'anomaly':
         #     self.mode = 'anomaly'
         #     # Metrics related features
@@ -100,9 +98,15 @@ class Trainer():
         self.metrics = {}
         for metric in self.chosen_metrics:
             if metric == 'acc':
-                self.metrics[metric] = Accuracy()
+                self.metrics[metric] = Accuracy(data_mode=self.data_mode)
             elif metric == 'f1':
-                self.metrics[metric] = F1Score()
+                self.metrics[metric] = F1Score(data_mode=self.data_mode)
+            elif metric == 'tpr':
+                self.metrics[metric] = Tpr(data_mode=self.data_mode)
+            elif metric == 'fpr':
+                self.metrics[metric] = Fpr(data_mode=self.data_mode)
+            elif metric == 'precision':
+                self.metrics[metric] = Precision(data_mode=self.data_mode)
             else:
                 raise ValueError('The metric {} is not available in classification mode!'.format(metric))
 

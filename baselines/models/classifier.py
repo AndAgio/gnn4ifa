@@ -61,7 +61,7 @@ class Classifier:
                 scores[metric_name] = metric_object.compute(y_pred=predictions,
                                                             y_true=labels)
                 if verbose:
-                    print('Metrics {}={:.3f}'.format(metric_name, scores[metric_name]))
+                    print('Metrics {}={:.3f}'.format(metric_name, scores[metric_name]*100))
         elif self.data_mode in ['single']:
             raise ValueError('Fitting for model {} and data mode {} is not available yet!'.format(self.chosen_model,
                                                                                                   self.data_mode))

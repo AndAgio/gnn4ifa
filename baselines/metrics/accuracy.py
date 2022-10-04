@@ -7,7 +7,7 @@ class Accuracy:
 
     def compute(self, y_true, y_pred):
         # Compute score and return it
-        if self.data_mode in ['avg', 'agg']:
+        if self.data_mode in ['avg', 'cat']:
             score = accuracy_score(y_true=y_true,
                                    y_pred=y_pred)
             return score

@@ -1,15 +1,16 @@
-from sklearn.metrics import f1_score
+from .utils import perf_measure
 
 
-class F1Score:
+class Fpr:
     def __init__(self, data_mode='avg'):
         self.data_mode = data_mode
 
     def compute(self, y_true, y_pred):
         # Compute score and return it
         if self.data_mode in ['avg', 'cat']:
-            score = f1_score(y_true=y_true,
-                                   y_pred=y_pred)
+            true_pos, false_pos, true_neg, false_neg = perf_measure(y_true=y_true,
+                                                                    y_pred=y_pred)
+            score = false_pos/(false_pos+true_neg)
             return score
         else:
             raise ValueError('Data mode {} not available yet!'.format(self.data_mode))
