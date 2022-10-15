@@ -114,21 +114,23 @@ class Trainer():
         # Check if directory for trained models exists, if not make it
         if not os.path.exists(self.trained_models_folder):
             os.makedirs(self.trained_models_folder)
-        model_name = '{} dm_{} fs_{} sce_{} topo_{}.pkl'.format(self.chosen_model,
-                                                               self.data_mode,
-                                                               self.feat_set,
-                                                               self.train_scenario,
-                                                               self.train_topology)
+        model_name = '{} dm_{} fs_{} sce_{} topo_{} ts_{}.pkl'.format(self.chosen_model,
+                                                                      self.data_mode,
+                                                                      self.feat_set,
+                                                                      self.train_scenario,
+                                                                      self.train_topology,
+                                                                      self.train_sim_ids)
         model_path = os.path.join(self.trained_models_folder, model_name)
         with open(model_path, 'wb') as file:
             pickle.dump(self.model, file)
 
     def load_best_model(self):
-        model_name = '{} dm_{} fs_{} sce_{} topo_{}.pkl'.format(self.chosen_model,
-                                                               self.data_mode,
-                                                               self.feat_set,
-                                                               self.train_scenario,
-                                                               self.train_topology)
+        model_name = '{} dm_{} fs_{} sce_{} topo_{} ts_{}.pkl'.format(self.chosen_model,
+                                                                      self.data_mode,
+                                                                      self.feat_set,
+                                                                      self.train_scenario,
+                                                                      self.train_topology,
+                                                                      self.train_sim_ids)
         model_path = os.path.join(self.trained_models_folder, model_name)
         with open(model_path, 'rb') as file:
             self.model = pickle.load(file)

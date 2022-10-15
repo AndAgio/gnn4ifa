@@ -554,7 +554,7 @@ class Datasetter:
     def store_json(raw_data, folder, file_name):
         if not os.path.exists(folder):
             os.makedirs(folder)
-        print('Storing json to {}'.format(os.path.join(folder, '{}.json'.format(file_name))))
+        print('Storing json to {}\n'.format(os.path.join(folder, '{}.json'.format(file_name))))
         with open(os.path.join(folder, '{}.json'.format(file_name)), 'w') as file:
             json.dump(raw_data, file)
 
@@ -630,34 +630,44 @@ class Datasetter:
                                                                  self.topology.upper())), '*.txt'))
         return file_names
 
-    def check_file_available(self):
-        for split in ['train', 'val', 'test']:
-            folder = os.path.join('/' + os.path.join(*self.out_file.split('/')[:-1]), split)
-            file_name = self.out_file.split('/')[-1] + '_{}_{}_{}'.format(self.mode,
-                                                                       self.topology,
-                                                                          self.train_sim_ids if split=='train' else self.val_sim_ids if split=='val' else self.test_sim_ids)
-            file = os.path.join(folder, '{}.json'.format(file_name))
-            if not os.path.exists(file):
-                print('File {} not found, extracting it...'.format(file))
-                return False
-        print('All files containing formatted dataset were found, we will use them...')
+    def check_file_available(self, split):
+        folder = os.path.join('/' + os.path.join(*self.out_file.split('/')[:-1]), split)
+        file_name = self.out_file.split('/')[-1] + '_{}_{}_{}'.format(self.mode,
+                                                                      self.topology,
+                                                                      self.train_sim_ids if split == 'train' else self.val_sim_ids if split == 'val' else self.test_sim_ids)
+        file = os.path.join(folder, '{}.json'.format(file_name))
+        print('Looking for file {} containing formatted dataset...'.format(file))
+        if not os.path.exists(file):
+            print('File {} not found, extracting it...'.format(file))
+            return False
+        print('File {} found, using it...'.format(file))
         return True
 
     @timeit
     def run(self, debug=False):
-        formatted_files_available = self.check_file_available()
-        if not formatted_files_available:
-            # print('\nraw_file_names: {}\n'.format(raw_file_names))
-            # downloaded_data_file = Datasetter.rename_topology_files(downloaded_data_file)
-            downloaded_data_file = self.read_files()
-            # print('downloaded_data_file: {}'.format(downloaded_data_file))
-            # Split the received files into train, validation and test
-            files_lists = self.split_files(downloaded_data_file)
-            # Iterate over train validation and test and get graph samples
-            print('Extracting data from each simulation of each split. This may take a while...')
-            for index, files in enumerate(files_lists):
-                data_dict = self.build_empty_data_dict()
-                split = None
+        # formatted_files_available = self.check_file_available()
+        # print('\nraw_file_names: {}\n'.format(raw_file_names))
+        # downloaded_data_file = Datasetter.rename_topology_files(downloaded_data_file)
+        downloaded_data_file = self.read_files()
+        # print('downloaded_data_file: {}'.format(downloaded_data_file))
+        # Split the received files into train, validation and test
+        files_lists = self.split_files(downloaded_data_file)
+        # Iterate over train validation and test and get graph samples
+        print('Extracting data from each simulation of each split. This may take a while...')
+        for index, files in enumerate(files_lists):
+            data_dict = self.build_empty_data_dict()
+            if index == 0:
+                split = 'train'
+                simulation_indices = self.train_sim_ids
+            elif index == 1:
+                split = 'val'
+                simulation_indices = self.val_sim_ids
+            elif index == 2:
+                split = 'test'
+                simulation_indices = self.test_sim_ids
+            else:
+                raise ValueError('Something went wrong with simulation indices')
+            if not self.check_file_available(split):
                 # Get attackers mode
                 att_modes = set([file.split('/')[-4].split('_')[0] for file in files])
                 for att_mode in att_modes:
@@ -711,8 +721,8 @@ class Datasetter:
                 # print('split: {}'.format(split))
                 folder = os.path.join(folder, split)
                 file_name = self.out_file.split('/')[-1] + '_{}_{}_{}'.format(self.mode,
-                                                                           self.topology,
-                                                                              self.train_sim_ids if split=='train' else self.val_sim_ids if split=='val' else self.test_sim_ids)
+                                                                              self.topology,
+                                                                              self.train_sim_ids if split == 'train' else self.val_sim_ids if split == 'val' else self.test_sim_ids)
                 self.store_json(data_dict,
                                 folder=folder,
                                 file_name=file_name)
@@ -721,8 +731,8 @@ class Datasetter:
         folder = '/' + os.path.join(*self.out_file.split('/')[:-1])
         folder = os.path.join(folder, split)
         file_name = self.out_file.split('/')[-1] + '_{}_{}_{}'.format(self.mode,
-                                                                   self.topology,
-                                                                   self.train_sim_ids if split=='train' else self.val_sim_ids if split=='val' else self.test_sim_ids)
+                                                                      self.topology,
+                                                                      self.train_sim_ids if split == 'train' else self.val_sim_ids if split == 'val' else self.test_sim_ids)
         data_set = pd.read_json(os.path.join(folder, '{}.json'.format(file_name)))
         # print('dataset for split {} is: {}'.format(data_set, split))
         return data_set
