@@ -10,11 +10,11 @@ do
   do
     for m in ${!modes[@]};
     do
-      if [ "$t" == "small" ] || [ "$t" = "dfn" ]
+      if [ "${topos[$t]}" = "small" ] || [ "${topos[$t]}" = "dfn" ]
       then
-         python train_base.py --model="${baselines[$b]}" --train_topology="${topos[$t]}" --data_mode="${modes[$m]}" --train_sims 1 --val_sims 2 3 4 5 --test_sims 2 3 4 5
+        python train_base.py --model="${baselines[$b]}" --train_topology="${topos[$t]}" --data_mode="${modes[$m]}" --train_sims 1 --val_sims 2 3 4 5 --test_sims 2 3 4 5
       else
-         python train_base.py --model="${baselines[$b]}" --train_topology="${topos[$t]}" --data_mode="${modes[$m]}" --train_sims 1 --val_sims 2 --test_sims 2
+        python train_base.py --model="${baselines[$b]}" --train_topology="${topos[$t]}" --data_mode="${modes[$m]}" --train_sims 1 --val_sims 2 --test_sims 2
       fi
       done
   done
