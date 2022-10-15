@@ -328,6 +328,22 @@ class Datasetter:
             out_timedout_interests_list = out_timedout_interests.to_list()
             out_timedout_interests = sum(i for i in out_timedout_interests_list)
             features['out_timedout_interests'] = out_timedout_interests
+        if 'pit_usage' in self.selected_features:
+            pit_size = pit_data[pit_data['Node'] == 'PIT_{}'.format(router_index)]['Size'].item()
+            features['pit_usage'] = pit_size/1200.0
+        if 'satisfaction_rate' in self.selected_features:
+            # Get Satisfaction rate of router at hand
+            in_data = rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'InData')]['PacketRaw']
+            in_data_list = in_data.to_list()
+            in_data = sum(i for i in in_data)
+            in_interests = rate_data[(rate_data['Node'] == node_name) & (rate_data['Type'] == 'InInterests')][
+                'PacketRaw']
+            in_interests_list = in_interests.to_list()
+            in_interests = sum(i for i in in_interests_list)
+            try:
+                features['satisfaction_rate'] = float(in_data/in_interests)
+            except:
+                features['satisfaction_rate'] = 0.
         # Return feature for node node_name
         nan_count = 0
         for key, value in features.items():
@@ -683,17 +699,6 @@ class Datasetter:
                         for n_att in n_atts:
                             n_att_files = [file for file in freq_files if file.split('/')[-2].split('_')[0] == n_att]
                             # Iterating over index of simulations
-                            if index == 0:
-                                split = 'train'
-                                simulation_indices = self.train_sim_ids
-                            elif index == 1:
-                                split = 'val'
-                                simulation_indices = self.val_sim_ids
-                            elif index == 2:
-                                split = 'test'
-                                simulation_indices = self.test_sim_ids
-                            else:
-                                raise ValueError('Something went wrong with simulation indices')
                             for s_index, simulation_index in enumerate(simulation_indices):
                                 simulation_files = [file for file in n_att_files if
                                                     int(file.split('-')[-1].split('.')[0]) == simulation_index]
