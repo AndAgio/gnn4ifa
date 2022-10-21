@@ -80,24 +80,24 @@ def plot_pit_distributions(download_folder, scenarios, topologies, mode='norm'):
         with open(file_name, 'wb') as handle:
             pkl.dump(pit_sizes, handle, protocol=pkl.HIGHEST_PROTOCOL)
     # print('pit_sizes: {}'.format(pit_sizes))
-    # Fit gaussian distributions
-    print('Fitting gaussians...')
-    gauss_dict = fit_gaussian(pit_sizes)
+    # Fit distributions over data
+    print('Fitting distributions...')
+    dist_dict = fit_distribution(pit_sizes, mode=mode)
     # print('gauss_dict: {}'.format(gauss_dict))
     # Plot distribution
     print('Saving plots...')
-    plot_gaussians(pit_sizes, gauss_dict)
-    plot_gaussians_singles(pit_sizes, gauss_dict)
-    plot_hists(pit_sizes, gauss_dict)
-    plot_hists_and_gaussians(pit_sizes, gauss_dict)
+    # plot_distributions(pit_sizes, dist_dict, mode=mode)
+    plot_distributions_singles(pit_sizes, dist_dict, mode=mode)
+    # plot_hists(pit_sizes, dist_dict)
+    # plot_hists_and_distributions(pit_sizes, dist_dict)
 
 
-def fit_gaussian(pit_sizes):
-    gauss_dict = {topo: {scenario: {freq: {n_att: {}
-                                           for n_att in pit_sizes[topo][scenario][freq].keys()}
-                                    for freq in pit_sizes[topo][scenario].keys()}
-                         for scenario in pit_sizes[topo].keys()}
-                  for topo in pit_sizes.keys()}
+def fit_distribution(pit_sizes, mode='norm'):
+    dist_dict = {topo: {scenario: {freq: {n_att: {}
+                                          for n_att in pit_sizes[topo][scenario][freq].keys()}
+                                   for freq in pit_sizes[topo][scenario].keys()}
+                        for scenario in pit_sizes[topo].keys()}
+                 for topo in pit_sizes.keys()}
     # print('gauss_dict: {}'.format(gauss_dict))
     # Iterate over each topology received in input
     for topo_name, topo_dict in pit_sizes.items():
@@ -107,15 +107,11 @@ def fit_gaussian(pit_sizes):
             for freq_name, freq_dict in scenario_dict.items():
                 # Iterate over n attackers
                 for n_att_name, data in freq_dict.items():
-                    # Fit gaussian distribution over pit sizes
-                    # print('topo: {}, scenario: {}, freq: {}, n_att: {}'.format(topo_name,
-                    #                                                            scenario_name,
-                    #                                                            freq_name,
-                    #                                                            n_att_name))
-                    # print('data: {}'.format(data))
-                    mu, std = norm.fit(data)
-                    gauss_dict[topo_name][scenario_name][freq_name][n_att_name] = [mu, std, np.min(data), np.max(data)]
-    return gauss_dict
+                    # Fit distribution over pit sizes
+                    dist = getattr(scipy.stats, mode)
+                    params = dist.fit(data)
+                    dist_dict[topo_name][scenario_name][freq_name][n_att_name] = params
+    return dist_dict
 
 
 def plot_hists(pit_sizes, gauss_dict):
@@ -172,9 +168,9 @@ def plot_hists(pit_sizes, gauss_dict):
     plt.close()
 
 
-def plot_gaussians(pit_sizes, gauss_dict):
+def plot_distributions(pit_sizes, dist_dict, mode='norm'):
     # Iterate over each topology received in input
-    n_topos = len(list(gauss_dict.keys()))
+    n_topos = len(list(dist_dict.keys()))
     fig, axs = plt.subplots(1, n_topos, figsize=(15, 8))
     axins_head = [axs[i].inset_axes([0.1, 0.5, 0.4, 0.47]) for i in range(n_topos)]
     axins_tail = [axs[i].inset_axes([0.55, 0.5, 0.4, 0.47]) for i in range(n_topos)]
@@ -193,9 +189,23 @@ def plot_gaussians(pit_sizes, gauss_dict):
                     title = r"Topology: {}".format(topo_name.upper())
                     axs[topo_index].title.set_text(title)
                     x = np.linspace(0, 1200, 5000)
-                    p = norm.pdf(x,
-                                 gauss_dict[topo_name][scenario_name][freq_name][n_att_name][0],
-                                 gauss_dict[topo_name][scenario_name][freq_name][n_att_name][1])
+                    dist = getattr(scipy.stats, mode)
+                    params = dist_dict[topo_name][scenario_name][freq_name][n_att_name]
+                    arg = params[:-2]
+                    loc = params[-2]
+                    scale = params[-1]
+                    if arg:
+                        p = dist.pdf(x, *arg, loc=loc, scale=scale)
+                    else:
+                        p = dist.pdf(x, loc=loc, scale=scale)
+                    # if mode == 'gauss':
+                    #     p = norm.pdf(x,
+                    #                  dist_dict[topo_name][scenario_name][freq_name][n_att_name][0],
+                    #                  dist_dict[topo_name][scenario_name][freq_name][n_att_name][1])
+                    # elif mode == 'multi_gauss':
+                    #     p = multivariate_normal.pdf(x,
+                    #                                 dist_dict[topo_name][scenario_name][freq_name][n_att_name][0],
+                    #                                 dist_dict[topo_name][scenario_name][freq_name][n_att_name][1])
                     axs[topo_index].plot(x, p,
                                          color=freq_color(freq_name), linewidth=2,
                                          linestyle=att_line(n_att_name),
@@ -240,7 +250,7 @@ def plot_gaussians(pit_sizes, gauss_dict):
     out_path = os.path.join(os.getcwd(), '..', 'output', 'plots', 'pits_distributions')
     if not os.path.exists(out_path):
         os.makedirs(out_path)
-    image_name = 'PITS_gauss_{}'.format([topo_name for topo_name, _ in gauss_dict.items()])
+    image_name = 'PITS_gauss_{}'.format([topo_name for topo_name, _ in dist_dict.items()])
     image_path = os.path.join(out_path, image_name)
     plt.tight_layout()
     plt.savefig(image_path + '.pdf', dpi=200)
@@ -252,9 +262,9 @@ def plot_gaussians(pit_sizes, gauss_dict):
     compress(image_path + '.pdf', power=4)
 
 
-def plot_gaussians_singles(pit_sizes, gauss_dict):
+def plot_distributions_singles(pit_sizes, dist_dict, mode='norm'):
     # Iterate over each topology received in input
-    n_topos = len(list(gauss_dict.keys()))
+    n_topos = len(list(dist_dict.keys()))
     # fig.suptitle('PITs Distributions')
     # fig.suptitle('TOPOLOGY: {}'.format(topo_name.upper()))
     # Save generated graph image
@@ -275,9 +285,23 @@ def plot_gaussians_singles(pit_sizes, gauss_dict):
                     title = r"Topology: {}".format(topo_name.upper())
                     axs.title.set_text(title)
                     x = np.linspace(0, 1200, 5000)
-                    p = norm.pdf(x,
-                                 gauss_dict[topo_name][scenario_name][freq_name][n_att_name][0],
-                                 gauss_dict[topo_name][scenario_name][freq_name][n_att_name][1])
+                    dist = getattr(scipy.stats, mode)
+                    params = dist_dict[topo_name][scenario_name][freq_name][n_att_name]
+                    arg = params[:-2]
+                    loc = params[-2]
+                    scale = params[-1]
+                    if arg:
+                        p = dist.pdf(x, *arg, loc=loc, scale=scale)
+                    else:
+                        p = dist.pdf(x, loc=loc, scale=scale)
+                    # if mode == 'gauss':
+                    #     p = norm.pdf(x,
+                    #                  dist_dict[topo_name][scenario_name][freq_name][n_att_name][0],
+                    #                  dist_dict[topo_name][scenario_name][freq_name][n_att_name][1])
+                    # elif mode == 'multi_gauss':
+                    #     p = multivariate_normal.pdf(x,
+                    #                                 dist_dict[topo_name][scenario_name][freq_name][n_att_name][0],
+                    #                                 dist_dict[topo_name][scenario_name][freq_name][n_att_name][1])
                     axs.plot(x, p,
                              color=freq_color(freq_name), linewidth=2,
                              linestyle=att_line(n_att_name),
@@ -331,9 +355,9 @@ def plot_gaussians_singles(pit_sizes, gauss_dict):
         compress(image_path + '.pdf', power=4)
 
 
-def plot_hists_and_gaussians(pit_sizes, gauss_dict):
+def plot_hists_and_distributions(pit_sizes, dist_dict, mode='norm'):
     # Iterate over each topology received in input
-    n_topos = len(list(gauss_dict.keys()))
+    n_topos = len(list(dist_dict.keys()))
     fig, axs = plt.subplots(2, n_topos, figsize=(15, 5))
     axins = [[axs[i, j].inset_axes([0.5, 0.5, 0.47, 0.47]) for j in range(n_topos)] for i in range(2)]
     fig.suptitle('PITs Distributions')
@@ -371,9 +395,23 @@ def plot_hists_and_gaussians(pit_sizes, gauss_dict):
                     axs[0, topo_index].legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=4)
                     # Plot the PDF.
                     x = np.linspace(0, 1200, 5000)
-                    p = norm.pdf(x,
-                                 gauss_dict[topo_name][scenario_name][freq_name][n_att_name][0],
-                                 gauss_dict[topo_name][scenario_name][freq_name][n_att_name][1])
+                    dist = getattr(scipy.stats, mode)
+                    params = dist_dict[topo_name][scenario_name][freq_name][n_att_name]
+                    arg = params[:-2]
+                    loc = params[-2]
+                    scale = params[-1]
+                    if arg:
+                        p = dist.pdf(x, *arg, loc=loc, scale=scale)
+                    else:
+                        p = dist.pdf(x, loc=loc, scale=scale)
+                    # if mode == 'gauss':
+                    #     p = norm.pdf(x,
+                    #                  dist_dict[topo_name][scenario_name][freq_name][n_att_name][0],
+                    #                  dist_dict[topo_name][scenario_name][freq_name][n_att_name][1])
+                    # elif mode == 'multi_gauss':
+                    #     p = multivariate_normal.pdf(x,
+                    #                                 dist_dict[topo_name][scenario_name][freq_name][n_att_name][0],
+                    #                                 dist_dict[topo_name][scenario_name][freq_name][n_att_name][1])
                     axs[1, topo_index].plot(x, p,
                                             color=freq_color(freq_name), linewidth=2,
                                             linestyle=att_line(n_att_name),
@@ -402,7 +440,7 @@ def plot_hists_and_gaussians(pit_sizes, gauss_dict):
     out_path = os.path.join(os.getcwd(), '..', 'output', 'plots', 'pits_distributions')
     if not os.path.exists(out_path):
         os.makedirs(out_path)
-    image_name = 'PITS_hists_and_gauss_{}.pdf'.format([topo_name for topo_name, _ in gauss_dict.items()])
+    image_name = 'PITS_hists_and_gauss_{}.pdf'.format([topo_name for topo_name, _ in dist_dict.items()])
     image_path = os.path.join(out_path, image_name)
     plt.tight_layout()
     plt.savefig(image_path)
@@ -836,7 +874,16 @@ def convert_pit_to_decent_format(file):
     return new_file
 
 
+def gather_settings():
+    parser = argparse.ArgumentParser(description='Settings for plotting pit distribution.')
+    parser.add_argument('--dist', default='norm',
+                        help='distribution used to fit data')
+    arguments = parser.parse_args()
+    return arguments
+
+
 def main():
+    sets = gather_settings()
     # Define scenarios for which the distribution plot is required
     download_folder = 'ifa_data_with_4'
     # Define scenarios for which the distribution plot is required
@@ -844,7 +891,7 @@ def main():
     # Define scenarios for which the distribution plot is required
     topologies = ['small', 'dfn']
     # Run distribution plotter
-    plot_pit_distributions(download_folder, scenarios, topologies)
+    plot_pit_distributions(download_folder, scenarios, topologies, mode=sets.dist)
 
 
 if __name__ == '__main__':
