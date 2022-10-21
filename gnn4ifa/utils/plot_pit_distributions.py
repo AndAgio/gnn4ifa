@@ -13,7 +13,9 @@ import numpy as np
 import glob
 import argparse
 import itertools
-from scipy.stats import norm
+import pickle as pkl
+import scipy.stats
+# from scipy.stats import norm, multivariate_normal
 import matplotlib
 import matplotlib.pyplot as plt
 import warnings
@@ -23,61 +25,60 @@ matplotlib.rc('font', **font)
 warnings.filterwarnings("ignore")
 
 
-def plot_pit_distributions(download_folder, scenarios, topologies):
-    # Define empty dictionary for pit sizes of topologies and scenarios
-    # pit_sizes = {topo: {scenario: {} for scenario in scenarios} for topo in topologies}
-    # # Get frequencies n_attackers combination
-    # f_a_combinations = get_freq_att_combinations_from_file_names(download_folder)
-    # for topology in topologies:
-    #     for scenario in scenarios:
-    #         if scenario != 'normal':
-    #             for comb in f_a_combinations:
-    #                 freq = comb[0]
-    #                 n_att = comb[1]
-    #                 if freq != '1' and n_att != '0':
-    #                     pit_sizes[topology][scenario][freq] = {n_att: []}
-    #         else:
-    #             pit_sizes[topology][scenario]['1'] = {'0': []}
-    pit_sizes = get_empty_dict_from_file_names(download_folder, scenarios)
-    print('Extracting PIT sizes. This may take a while...')
-    # Iterate over each topology received in input
-    for topology in topologies:
-        # Iterate over each scenario passed as input
-        for scenario in scenarios:
-            assert scenario in ['normal', 'existing', 'non_existing']
-            # Define the path to files containing data for current scenario
-            path = simulations_path(download_folder=download_folder,
-                                    scenario=scenario,
-                                    topology=topology)
-            # print('path: {}'.format(path))
-            # Get files list containing files of current scenario
-            files_list = get_files_list(directory=path, scenario=scenario)
-            # If the scenario is not the legitimate one then we need to plot one distribution for each frequency
-            if scenario != 'normal':
-                # Iterate over frequencies
-                frequencies = np.unique([file.split('/')[-3].split('x')[0] for file in files_list])
-                for frequence in frequencies:
-                    freq_files = [file for file in files_list if file.split('/')[-3].split('x')[0] == frequence]
-                    # Iterate over number of attackers
-                    n_atts = set([file.split('/')[-2].split('_')[0] for file in freq_files])
-                    for n_att in n_atts:
-                        n_att_files = [file for file in freq_files if file.split('/')[-2].split('_')[0] == n_att]
-                        # print('n_att_files: {}'.format(n_att_files))
-                        # Get pit distributions
-                        pits = extract_pits_from_simulation_files(simulation_files=n_att_files,
-                                                                  scenario=scenario,
-                                                                  simulation_time=300,
-                                                                  att_tim=50)
-                        # Append distributions to dictionary for plotting
-                        pit_sizes[topology][scenario][frequence][n_att] += pits
-            else:
-                # Get pit distributions
-                pits = extract_pits_from_simulation_files(simulation_files=files_list,
-                                                          scenario=scenario,
-                                                          simulation_time=300,
-                                                          att_tim=50)
-                # Append distributions to dictionary for plotting
-                pit_sizes[topology][scenario]['1']['0'] += pits
+def plot_pit_distributions(download_folder, scenarios, topologies, mode='norm'):
+    # Check if pickle files are available for the pit sizes and satisfaction rates
+    out_path = os.path.join(os.getcwd(), '..', 'output', 'pickles', 'pits_distributions')
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    try:
+        file_name = os.path.join(out_path, 'pit_sizes.pkl')
+        with open(file_name, 'rb') as handle:
+            pit_sizes = pkl.load(handle)
+    except:
+        pit_sizes = get_empty_dict_from_file_names(download_folder, scenarios)
+        print('Extracting PIT sizes. This may take a while...')
+        # Iterate over each topology received in input
+        for topology in topologies:
+            # Iterate over each scenario passed as input
+            for scenario in scenarios:
+                assert scenario in ['normal', 'existing', 'non_existing']
+                # Define the path to files containing data for current scenario
+                path = simulations_path(download_folder=download_folder,
+                                        scenario=scenario,
+                                        topology=topology)
+                # print('path: {}'.format(path))
+                # Get files list containing files of current scenario
+                files_list = get_files_list(directory=path, scenario=scenario)
+                # If the scenario is not the legitimate one then we need to plot one distribution for each frequency
+                if scenario != 'normal':
+                    # Iterate over frequencies
+                    frequencies = np.unique([file.split('/')[-3].split('x')[0] for file in files_list])
+                    for frequence in frequencies:
+                        freq_files = [file for file in files_list if file.split('/')[-3].split('x')[0] == frequence]
+                        # Iterate over number of attackers
+                        n_atts = set([file.split('/')[-2].split('_')[0] for file in freq_files])
+                        for n_att in n_atts:
+                            n_att_files = [file for file in freq_files if file.split('/')[-2].split('_')[0] == n_att]
+                            # print('n_att_files: {}'.format(n_att_files))
+                            # Get pit distributions
+                            pits = extract_pits_from_simulation_files(simulation_files=n_att_files,
+                                                                      scenario=scenario,
+                                                                      simulation_time=300,
+                                                                      att_tim=50)
+                            # Append distributions to dictionary for plotting
+                            pit_sizes[topology][scenario][frequence][n_att] += pits
+                else:
+                    # Get pit distributions
+                    pits = extract_pits_from_simulation_files(simulation_files=files_list,
+                                                              scenario=scenario,
+                                                              simulation_time=300,
+                                                              att_tim=50)
+                    # Append distributions to dictionary for plotting
+                    pit_sizes[topology][scenario]['1']['0'] += pits
+        # Store pickle files containing pit sizes and satisfaction rates
+        file_name = os.path.join(out_path, 'pit_sizes.pkl')
+        with open(file_name, 'wb') as handle:
+            pkl.dump(pit_sizes, handle, protocol=pkl.HIGHEST_PROTOCOL)
     # print('pit_sizes: {}'.format(pit_sizes))
     # Fit gaussian distributions
     print('Fitting gaussians...')
