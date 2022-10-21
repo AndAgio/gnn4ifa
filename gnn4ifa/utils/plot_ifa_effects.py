@@ -16,8 +16,18 @@ import matplotlib
 import matplotlib.pyplot as plt
 import warnings
 
-font = {'size': 25}
-matplotlib.rc('font', **font)
+SMALL_SIZE = 15
+MEDIUM_SIZE = 30
+BIG_SIZE = 40
+plt.rc('font', size=BIG_SIZE)          # controls default text sizes
+plt.rc('axes', titlesize=MEDIUM_SIZE)     # fontsize of the axes title
+plt.rc('axes', labelsize=BIG_SIZE)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
+plt.rc('legend', fontsize=BIG_SIZE)    # legend fontsize
+plt.rc('figure', titlesize=BIG_SIZE)  # fontsize of the figure title
+# font = {'size': 25}
+# matplotlib.rc('font', **font)
 warnings.filterwarnings("ignore")
 
 
@@ -121,7 +131,7 @@ def plot_pit_sizes(pit_sizes):
                     #                                                                     freq_name,
                     #                                                                     n_att_name))
                     # print('data: {}'.format(data))
-                    fig, axs = plt.subplots(figsize=(10, 10))
+                    fig, axs = plt.subplots(figsize=(15, 20))
                     colormap = get_cmap(len(list(data.keys())))
                     router_index = 0
                     for router_name, pit_size in data.items():
@@ -129,7 +139,7 @@ def plot_pit_sizes(pit_sizes):
                         # print('pit_size: {}'.format(pit_size))
                         x = np.linspace(0, len(pit_size), len(pit_size))
                         axs.plot(x, pit_size,
-                                 color=colormap(router_index), linewidth=2,
+                                 color=colormap(router_index), linewidth=3,
                                  label=router_name)
                         router_index += 1
                     axs.set_ylim(0, 1200)
@@ -167,7 +177,7 @@ def plot_satisfaction_rate(pit_sizes):
                     #                                                                     freq_name,
                     #                                                                     n_att_name))
                     # print('data: {}'.format(data))
-                    fig, axs = plt.subplots(figsize=(10, 10))
+                    fig, axs = plt.subplots(figsize=(15, 20))
                     colormap = get_cmap(len(list(data.keys())))
                     consumer_index = 0
                     for consumer_name, satisfaction_rates in data.items():
@@ -175,7 +185,7 @@ def plot_satisfaction_rate(pit_sizes):
                         # print('satisfaction_rates: {}'.format(satisfaction_rates))
                         x = np.linspace(0, len(satisfaction_rates), len(satisfaction_rates))
                         axs.plot(x, [sr*100 for sr in satisfaction_rates],
-                                 color=colormap(consumer_index), linewidth=2,
+                                 color=colormap(consumer_index), linewidth=3,
                                  label='Cons{}'.format(consumer_index+1))
                         consumer_index += 1
                     axs.set_ylim(0, 100)
