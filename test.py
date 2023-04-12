@@ -6,6 +6,7 @@
 # print('dataset.processed_dir: {}'.format(dataset.processed_dir))
 
 import argparse
+from memory_profiler import profile
 # Import my modules
 from gnn4ifa.bin import Tester
 
@@ -33,6 +34,14 @@ def gather_settings():
                         help='IDs list of simulations to be used as validation')
     parser.add_argument('--test_sims', nargs="+", type=int, default=[5],
                         help='IDs list of simulations to be used as test')
+    parser.add_argument('--train_freq', type=float, default=-1,
+                        help='IDs list of simulations to be used as training')
+    parser.add_argument('--val_freq', type=float, default=-1,
+                        help='IDs list of simulations to be used as validation')
+    parser.add_argument('--test_freq', type=float, default=-1,
+                        help='IDs list of simulations to be used as test')
+    parser.add_argument('--split_mode', default='file_ids',
+                        help='cuda if GPU is needed, cpu otherwise')
     parser.add_argument('--sim_time', type=int, default=300,
                         help='Time of simulations')
     parser.add_argument('--time_att_start', type=int, default=50,
@@ -53,6 +62,7 @@ def gather_settings():
     return args
 
 
+@profile
 def main(args):
     print(args)
     tester = Tester(dataset_folder=args.dataset_folder,
@@ -65,6 +75,10 @@ def main(args):
                     train_sim_ids=args.train_sims,
                     val_sim_ids=args.val_sims,
                     test_sim_ids=args.test_sims,
+                    train_freq=args.train_freq,
+                    val_freq=args.val_freq,
+                    test_freq=args.test_freq,
+                    split_mode=args.split_mode,
                     simulation_time=args.sim_time,
                     time_att_start=args.time_att_start,
                     differential=True if args.differential == 1 else False,

@@ -1,5 +1,8 @@
 import os
 import time
+import psutil
+import random
+from memory_profiler import profile
 import numpy as np
 import pandas as pd
 import torch
@@ -10,7 +13,7 @@ from gnn4ifa.transforms import NormalizeFeatures, RandomNodeMasking
 from gnn4ifa.models import Classifier, AutoEncoder
 from gnn4ifa.metrics import Accuracy, F1Score, MSE, MAE
 from gnn4ifa.utils import get_data_loader, get_labels_scenario_dict, get_labels_attacker_type_dict, \
-    get_labels_topology_dict
+    get_labels_topology_dict, timeit
 
 
 class Tester():
@@ -25,6 +28,10 @@ class Tester():
                  train_sim_ids=[1, 2, 3],
                  val_sim_ids=[4],
                  test_sim_ids=[5],
+                 train_freq=0.7,
+                 val_freq=0.15,
+                 test_freq=0.15,
+                 split_mode='file_ids',
                  simulation_time=300,
                  time_att_start=50,
                  differential=False,
@@ -43,6 +50,10 @@ class Tester():
         self.train_sim_ids = train_sim_ids
         self.val_sim_ids = val_sim_ids
         self.test_sim_ids = test_sim_ids
+        self.train_freq = train_freq
+        self.val_freq = val_freq
+        self.test_freq = test_freq
+        self.split_mode = split_mode
         self.simulation_time = simulation_time
         self.time_att_start = time_att_start
         print(f'differential={differential}')
@@ -76,6 +87,7 @@ class Tester():
         self.get_dataset()
         self.get_model()
 
+    @profile
     def get_dataset(self):
         # Get dataset
         if self.mode == 'class':
@@ -99,6 +111,10 @@ class Tester():
                                         train_sim_ids=self.train_sim_ids,
                                         val_sim_ids=self.val_sim_ids,
                                         test_sim_ids=self.test_sim_ids,
+                                        train_freq=self.train_freq,
+                                        val_freq=self.val_freq,
+                                        test_freq=self.test_freq,
+                                        split_mode=self.split_mode,
                                         simulation_time=self.simulation_time,
                                         time_att_start=self.time_att_start,
                                         differential=self.differential,
@@ -114,6 +130,10 @@ class Tester():
                                        train_sim_ids=self.train_sim_ids if self.mode == 'class' else [0],
                                        val_sim_ids=self.val_sim_ids if self.mode == 'class' else [0],
                                        test_sim_ids=self.test_sim_ids if self.mode == 'class' else [1, 2, 3, 4, 5],
+                                       train_freq=self.train_freq,
+                                       val_freq=self.val_freq,
+                                       test_freq=self.test_freq,
+                                       split_mode=self.split_mode,
                                        simulation_time=self.simulation_time,
                                        time_att_start=self.time_att_start,
                                        differential=self.differential,
@@ -125,6 +145,7 @@ class Tester():
                                                shuffle=False)
         elif self.differential:
             self.test_loader = self.test_dataset.get_data_dict(frequencies=self.frequencies)
+            # print('self.test_loader: {}'.format(self.test_loader))
         elif not self.differential:
             self.test_loader = get_data_loader(self.test_dataset.get_all_data(frequencies=self.frequencies),
                                                batch_size=1,
@@ -144,18 +165,40 @@ class Tester():
         self.metrics = {'acc': Accuracy(),
                         'f1': F1Score()}
 
+    @profile
     def load_best_model(self):
         if self.mode == 'class':
-            model_name = '{} sce_{} topo_{} diff_{} best.pt'.format(self.chosen_model,
-                                                                    self.train_scenario,
-                                                                    self.train_topology,
-                                                                    self.differential)
+            if self.split_mode == 'percentage':
+                model_name = '{} sce_{} topo_{} diff_{} perc_{} best.pt'.format(self.chosen_model,
+                                                                                self.train_scenario,
+                                                                                self.train_topology,
+                                                                                self.differential,
+                                                                                self.train_freq)
+            elif self.split_mode == 'file_ids':
+                model_name = '{} sce_{} topo_{} diff_{} ids_{} best.pt'.format(self.chosen_model,
+                                                                               self.train_scenario,
+                                                                               self.train_topology,
+                                                                               self.differential,
+                                                                               self.train_sim_ids)
+            else:
+                raise ValueError('Split mode \"{}\" not supported!'.format(self.split_mode))
         elif self.mode == 'anomaly':
-            model_name = '{} mask_{} sce_{} topo_{} diff_{} best.pt'.format(self.chosen_model,
-                                                                            self.masking,
-                                                                            self.train_scenario,
-                                                                            self.train_topology,
-                                                                            self.differential)
+            if self.split_mode == 'percentage':
+                model_name = '{} mask_{} sce_{} topo_{} diff_{} perc_{} best.pt'.format(self.chosen_model,
+                                                                                        self.masking,
+                                                                                        self.train_scenario,
+                                                                                        self.train_topology,
+                                                                                        self.differential,
+                                                                                        self.train_freq)
+            elif self.split_mode == 'file_ids':
+                model_name = '{} mask_{} sce_{} topo_{} diff_{} ids_{} best.pt'.format(self.chosen_model,
+                                                                                       self.masking,
+                                                                                       self.train_scenario,
+                                                                                       self.train_topology,
+                                                                                       self.differential,
+                                                                                       self.train_sim_ids)
+            else:
+                raise ValueError('Split mode \"{}\" not supported!'.format(self.split_mode))
         else:
             raise ValueError('Something went wrong with mode selection')
         model_path = os.path.join(self.trained_models_folder, model_name)
@@ -163,9 +206,13 @@ class Tester():
         # Move model to GPU or CPU
         self.model = self.model.to(self.device)
 
+    @profile
     def run(self):
+        start = time.time()
         print('Start testing...')
         self.test()
+        stop = time.time()
+        print('The average CPU usage during training is {} %'.format(psutil.cpu_percent(stop - start)))
 
     # @torch.no_grad()
     # def test(self):
@@ -433,12 +480,12 @@ class Tester():
             frequency = simulation[0].frequency.item()
             attackers_type = get_labels_attacker_type_dict()[simulation[0].attackers_type.item()]
             n_attackers = simulation[0].n_attackers.item()
-            print('Testing on simulation with topology={}, scenario={}, '
-                  'attackers_type={}, frequency={}, n_attackers={}'.format(topology,
-                                                                           scenario,
-                                                                           attackers_type,
-                                                                           frequency,
-                                                                           n_attackers))
+            # print('Testing on simulation with topology={}, scenario={}, '
+            #       'attackers_type={}, frequency={}, n_attackers={}'.format(topology,
+            #                                                                scenario,
+            #                                                                attackers_type,
+            #                                                                frequency,
+            #                                                                n_attackers))
             # Iterate over each sample of the simulation
             predictions = []
             labels = []
@@ -468,9 +515,9 @@ class Tester():
                 if labels[index] == 1 and labels[index - 1] == 0:
                     if predictions[index] == 1 and labels[index] == 1:
                         exact_alarm = 1
-            print('False Alarms: {}'.format(false_alarms))
-            print('True Alarms: {}'.format(true_alarms))
-            print('Exact Alarms: {}'.format(exact_alarm))
+            # print('False Alarms: {}'.format(false_alarms))
+            # print('True Alarms: {}'.format(true_alarms))
+            # print('Exact Alarms: {}'.format(exact_alarm))
             metrics_dict[topology][scenario][frequency][attackers_type][n_attackers]['tps'].append(
                 1 if true_alarms >= 1 else 0)
             metrics_dict[topology][scenario][frequency][attackers_type][n_attackers]['fps'].append(false_alarms)
@@ -481,17 +528,17 @@ class Tester():
             simulations_true_alarms.append(true_alarms)
             simulations_exact_alarms.append(exact_alarm)
         # Print the results
-        print('True alarms over testing simulations: {}'.format(simulations_true_alarms))
-        print('False alarms over testing simulations: {}'.format(simulations_false_alarms))
-        print('Exact alarm over testing simulations: {}'.format(simulations_exact_alarms))
-        print('Overall TPR = {:.3f}%'.format(100 * sum(i >= 1 for i in simulations_true_alarms) /
-                                             len(simulations_true_alarms)))
-        print('Overall FPR = {:.3f}%'.format(100 * sum(simulations_false_alarms) /
-                                             (len(simulations_false_alarms) * self.time_att_start)))
+        # print('True alarms over testing simulations: {}'.format(simulations_true_alarms))
+        # print('False alarms over testing simulations: {}'.format(simulations_false_alarms))
+        # print('Exact alarm over testing simulations: {}'.format(simulations_exact_alarms))
+        # print('Overall TPR = {:.3f}%'.format(100 * sum(i >= 1 for i in simulations_true_alarms) /
+        #                                      len(simulations_true_alarms)))
+        # print('Overall FPR = {:.3f}%'.format(100 * sum(simulations_false_alarms) /
+        #                                      (len(simulations_false_alarms) * self.time_att_start)))
         inference_times = [inf * 1000 for inf in inference_times]
-        print(u'Inference time: {:.3f} \u00B1 {:.3f} ms over {} samples'.format(np.mean(inference_times),
-                                                                                np.std(inference_times),
-                                                                                len(inference_times)))
+        # print(u'Inference time: {:.3f} \u00B1 {:.3f} ms over {} samples'.format(np.mean(inference_times),
+        #                                                                         np.std(inference_times),
+        #                                                                         len(inference_times)))
         self.format_and_print_stats(metrics_dict, mode='uad')
 
     def format_and_print_stats(self, metrics_dict, mode='uad'):
@@ -651,7 +698,11 @@ class Tester():
     def get_threshold(self, metric='mae'):
         print('Computing {}s over legitimate training samples'.format(metric.upper()))
         values = []
-        loader = get_data_loader(self.train_dataset.get_only_normal_data(),
+        normal_data = self.train_dataset.get_only_normal_data()
+        if self.split_mode == 'percentage':
+            n_normal_samples = int(len(normal_data) * self.train_freq)
+            normal_data = random.sample(normal_data, n_normal_samples)
+        loader = get_data_loader(normal_data,
                                  batch_size=1,
                                  shuffle=True)
         for batch_index, data in enumerate(loader):
@@ -688,7 +739,7 @@ class Tester():
         else:
             raise ValueError('Percentile should be between 0 and 1')
         threshold = sorted_values[threshold_index]
-        print('sorted_values: {}'.format(sorted_values))
+        # print('sorted_values: {}'.format(sorted_values))
         print('{} threshold obtained: {}'.format(metric.upper(), threshold))
         return threshold
 

@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import math
+import random
 import os
 import glob
 import warnings
@@ -9,6 +10,8 @@ import networkx as nx
 import torch
 import torch_geometric as tg
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+import pickle
 # Import modules
 from gnn4ifa.utils import timeit, get_scenario_labels_dict, get_attacker_type_labels_dict, get_topology_labels_dict
 
@@ -177,7 +180,7 @@ class Extractor():
             if line.rstrip()[0] == '#':
                 break
             else:
-                lines_to_keep.append('\t'.join(line.split())+'\n')
+                lines_to_keep.append('\t'.join(line.split()) + '\n')
         lines_to_keep = reversed(lines_to_keep)
         # print('lines_to_keep: {}'.format(lines_to_keep))
         return lines_to_keep
@@ -589,6 +592,7 @@ class Extractor():
         #         int(file.split('-')[-1].split('.')[0])
         #     except ValueError:
         #         print('File raising error is: {}'.format(file))
+        print('self.train_sim_ids: {}'.format(self.train_sim_ids))
         train_files = [file for file in files if int(file.split('-')[-1].split('.')[0]) in self.train_sim_ids]
         # print('train_files: {}'.format(train_files))
         val_files = [file for file in files if int(file.split('-')[-1].split('.')[0]) in self.val_sim_ids]
@@ -610,58 +614,190 @@ class Extractor():
         return files
 
     @timeit
-    def run(self, downloaded_data_file, raw_dir, raw_file_names):
+    def run(self, downloaded_data_file, raw_dir, raw_file_names, split_mode='file_ids'):
         # print('\nraw_file_names: {}\n'.format(raw_file_names))
         # downloaded_data_file = Extractor.rename_topology_files(downloaded_data_file)
-        # Split the received files into train, validation and test
-        files_lists = self.split_files(downloaded_data_file)
-        # Iterate over train validation and test and get graph samples
-        print('Extracting graph data from each simulation of each split. This may take a while...')
-        for index, files in enumerate(files_lists):
-            list_of_tg_graphs = []
-            # Get attackers mode
-            att_modes = set([file.split('/')[-4].split('_')[0] for file in files])
-            for att_mode in att_modes:
-                att_files = [file for file in files if file.split('/')[-4].split('_')[0] == att_mode]
-                # Iterate over frequencies
-                frequencies = np.unique([file.split('/')[-3].split('x')[0] for file in att_files])
-                # print('frequencies: {}'.format(frequencies))
-                for frequence in frequencies:
-                    freq_files = [file for file in att_files if file.split('/')[-3].split('x')[0] == frequence]
-                    # print('freq_files: {}'.format(freq_files))
-                    # Iterate over number of attackers
-                    n_atts = set([file.split('/')[-2].split('_')[0] for file in freq_files])
-                    for n_att in n_atts:
-                        n_att_files = [file for file in freq_files if file.split('/')[-2].split('_')[0] == n_att]
-                        # Iterating over index of simulations
-                        if index == 0:
-                            split = 'train'
-                            simulation_indices = self.train_sim_ids
-                        elif index == 1:
-                            split = 'val'
-                            simulation_indices = self.val_sim_ids
-                        elif index == 2:
-                            split = 'test'
-                            simulation_indices = self.test_sim_ids
-                        else:
-                            raise ValueError('Something went wrong with simulation indices')
-                        for s_index, simulation_index in enumerate(simulation_indices):
-                            simulation_files = [file for file in n_att_files if
-                                                int(file.split('-')[-1].split('.')[0]) == simulation_index]
-                            # print('simulation files: {}'.format(simulation_files))
-                            if not simulation_files:
-                                continue
-                            # Extract graphs from single simulation
-                            tg_graphs = self.extract_graphs_from_simulation_files(simulation_files=simulation_files,
-                                                                                  simulation_index=s_index + 1,
-                                                                                  total_simulations=len(simulation_indices),
-                                                                                  split=split)
-                            # Add the graphs to the list of tg_graphs
-                            list_of_tg_graphs += tg_graphs
-            # print('list_of_tg_graphs: {}'.format(list_of_tg_graphs))
-            # Close info line
-            print()
-            # Store list of tg graphs in the raw folder of the tg dataset
-            self.store_tg_data_raw(list_of_tg_graphs,
-                                   raw_dir,
-                                   raw_file_names[index])
+        if split_mode == 'file_ids' or self.differential:
+            # Split the received files into train, validation and test
+            files_lists = self.split_files(downloaded_data_file)
+            # Iterate over train validation and test and get graph samples
+            print('Extracting graph data from each simulation of each split. This may take a while...')
+            for index, files in enumerate(files_lists):
+                list_of_tg_graphs = []
+                # Get attackers mode
+                att_modes = set([file.split('/')[-4].split('_')[0] for file in files])
+                for att_mode in att_modes:
+                    att_files = [file for file in files if file.split('/')[-4].split('_')[0] == att_mode]
+                    # Iterate over frequencies
+                    frequencies = np.unique([file.split('/')[-3].split('x')[0] for file in att_files])
+                    # print('frequencies: {}'.format(frequencies))
+                    for frequence in frequencies:
+                        freq_files = [file for file in att_files if file.split('/')[-3].split('x')[0] == frequence]
+                        # print('freq_files: {}'.format(freq_files))
+                        # Iterate over number of attackers
+                        n_atts = set([file.split('/')[-2].split('_')[0] for file in freq_files])
+                        for n_att in n_atts:
+                            n_att_files = [file for file in freq_files if file.split('/')[-2].split('_')[0] == n_att]
+                            # Iterating over index of simulations
+                            if index == 0:
+                                split = 'train'
+                                simulation_indices = self.train_sim_ids
+                            elif index == 1:
+                                split = 'val'
+                                simulation_indices = self.val_sim_ids
+                            elif index == 2:
+                                split = 'test'
+                                simulation_indices = self.test_sim_ids
+                            else:
+                                raise ValueError('Something went wrong with simulation indices')
+                            for s_index, simulation_index in enumerate(simulation_indices):
+                                simulation_files = [file for file in n_att_files if
+                                                    int(file.split('-')[-1].split('.')[0]) == simulation_index]
+                                # print('simulation files: {}'.format(simulation_files))
+                                if not simulation_files:
+                                    continue
+                                # Extract graphs from single simulation
+                                tg_graphs = self.extract_graphs_from_simulation_files(simulation_files=simulation_files,
+                                                                                      simulation_index=s_index + 1,
+                                                                                      total_simulations=len(
+                                                                                          simulation_indices),
+                                                                                      split=split)
+                                # Add the graphs to the list of tg_graphs
+                                list_of_tg_graphs += tg_graphs
+                # print('list_of_tg_graphs: {}'.format(list_of_tg_graphs))
+                # Close info line
+                print()
+                # Store list of tg graphs in the raw folder of the tg dataset
+                self.store_tg_data_raw(list_of_tg_graphs,
+                                       raw_dir,
+                                       raw_file_names[index])
+        elif split_mode == 'percentage':
+            print('Trying to load all graphs converted to tg samples...')
+            try:
+                uppath = lambda _path, n: os.sep.join(_path.split(os.sep)[:-n])
+                pickles_path = uppath(raw_dir, 1)
+                print('Looking for pickle file containing '
+                      'all graphs at {}'.format(os.path.join(pickles_path,
+                                                             'pickles_checkpoints',
+                                                             'all_tg_graphs_list_diff_{}.pkl'.format(
+                                                                 self.differential))))
+                with open(os.path.join(pickles_path,
+                                       'pickles_checkpoints',
+                                       'all_tg_graphs_list_diff_{}.pkl'.format(self.differential)), 'rb') as f:
+                    print('Pickle file containing all graphs found. Loading it...')
+                    list_of_tg_graphs = pickle.load(f)
+            except:
+                print('Pickle file containing all graphs not found!')
+                # Split the received files into train, validation and test
+                files = downloaded_data_file
+                # Iterate over train validation and test and get graph samples
+                print('Extracting graph data from each simulation. This may take a while...')
+                list_of_tg_graphs = []
+                # counter = 0
+                # Get attackers mode
+                att_modes = set([file.split('/')[-4].split('_')[0] for file in files])
+                if 'fixed' in att_modes:
+                    att_modes.remove('fixed')
+                print('\n\natt_modes: {}\n\n'.format(att_modes))
+                # att_modes = ['variable']
+                # print('att_modes = {}'.format(att_modes))
+                for att_mode in att_modes:
+                    att_files = [file for file in files if file.split('/')[-4].split('_')[0] == att_mode]
+                    # Iterate over frequencies
+                    frequencies = np.unique([file.split('/')[-3].split('x')[0] for file in att_files])
+                    # print('frequencies: {}'.format(frequencies))
+                    for frequence in frequencies:
+                        freq_files = [file for file in att_files if file.split('/')[-3].split('x')[0] == frequence]
+                        # print('freq_files: {}'.format(freq_files))
+                        # Iterate over number of attackers
+                        n_atts = set([file.split('/')[-2].split('_')[0] for file in freq_files])
+                        for n_att in n_atts:
+                            n_att_files = [file for file in freq_files if file.split('/')[-2].split('_')[0] == n_att]
+                            # Iterating over index of simulations
+                            simulation_indices = [1, 2, 3, 4, 5]
+                            for s_index, simulation_index in enumerate(simulation_indices):
+                                simulation_files = [file for file in n_att_files if
+                                                    int(file.split('-')[-1].split('.')[0]) == simulation_index]
+                                # print('simulation files: {}'.format(simulation_files))
+                                if not simulation_files:
+                                    continue
+                                # Extract graphs from single simulation
+                                tg_graphs = self.extract_graphs_from_simulation_files(simulation_files=simulation_files,
+                                                                                      simulation_index=s_index + 1,
+                                                                                      total_simulations=len(
+                                                                                          simulation_indices),
+                                                                                      split='all')
+                                # Add the graphs to the list of tg_graphs
+                                list_of_tg_graphs += tg_graphs
+                    #             counter += 1
+                    #             if counter >= 2:
+                    #                 break
+                    #         if counter >= 2:
+                    #             break
+                    #     if counter >= 2:
+                    #         break
+                    # if counter >= 2:
+                    #     break
+                    # print('list_of_tg_graphs: {}'.format(list_of_tg_graphs))
+                    # Close info line
+                print()
+                # Store list of tg graphs in the raw folder of the tg dataset
+                uppath = lambda _path, n: os.sep.join(_path.split(os.sep)[:-n])
+                pickles_path = uppath(raw_dir, 1)
+                if not os.path.exists(os.path.join(pickles_path, 'pickles_checkpoints')):
+                    os.makedirs(os.path.join(pickles_path, 'pickles_checkpoints'))
+                print('Dumping list of to {}'.format(os.path.join(pickles_path,
+                                                                  'pickles_checkpoints',
+                                                                  'all_tg_graphs_list_diff_{}.pkl'.format(
+                                                                      self.differential))))
+                with open(os.path.join(pickles_path,
+                                       'pickles_checkpoints',
+                                       'all_tg_graphs_list_diff_{}.pkl'.format(self.differential)), 'wb') as f:
+                    pickle.dump(list_of_tg_graphs, f)
+            with open(os.path.join(pickles_path,
+                                   'pickles_checkpoints',
+                                   'all_tg_graphs_list_diff_{}.pkl'.format(self.differential)), 'rb') as f:
+                print('Pickle file containing all graphs found. Loading it...')
+                list_of_tg_graphs = pickle.load(f)
+            print('Splitting graphs into sets depending on given percentages. This may take a while...')
+            # Split dataset into train, validation and test
+            random.shuffle(list_of_tg_graphs)
+            # train_pct_index = int(self.train_sim_ids * len(list_of_tg_graphs))
+            # train_data = list_of_tg_graphs[:train_pct_index]
+            # rest_data = list_of_tg_graphs[train_pct_index:]
+            train_data, rest_data = train_test_split(list_of_tg_graphs, train_size=self.train_sim_ids, shuffle=False)
+            # print('train_data: {}'.format(train_data))
+            val_data_percentage = self.val_sim_ids / (1 - self.train_sim_ids)
+            # print('self.train_sim_ids: {}'.format(self.train_sim_ids))
+            # print('self.val_sim_ids: {}'.format(self.val_sim_ids))
+            # print('self.test_sim_ids: {}'.format(self.test_sim_ids))
+            # print('val_data_percentage: {}'.format(val_data_percentage))
+            # val_pct_index = int(val_data_percentage * len(rest_data))
+            # validation_data = rest_data[:val_pct_index]
+            # test_data = rest_data[val_pct_index:]
+            # list_of_lists_of_tg_graphs = [train_data, validation_data, test_data]
+            validation_data, test_data = train_test_split(rest_data, train_size=val_data_percentage, shuffle=False)
+            list_of_lists_of_tg_graphs = [train_data, validation_data, test_data]
+            for index in range(3):
+                print('Trying to store split at index {}...'.format(index))
+                self.store_tg_data_raw(list_of_lists_of_tg_graphs[index],
+                                       raw_dir,
+                                       raw_file_names[index])
+                print('Storing completed successfully!')
+            # print('Trying to store training split...')
+            # self.store_tg_data_raw(train_data,
+            #                        raw_dir,
+            #                        raw_file_names[0])
+            # print('Storing completed successfully!')
+            # print('Trying to store validation split...')
+            # self.store_tg_data_raw(validation_data,
+            #                        raw_dir,
+            #                        raw_file_names[1])
+            # print('Storing completed successfully!')
+            # print('Trying to store test split...')
+            # self.store_tg_data_raw(test_data,
+            #                        raw_dir,
+            #                        raw_file_names[2])
+            # print('Storing completed successfully!')
+        else:
+            raise ValueError('Split mode \'{}\' not available!'.format(split_mode))

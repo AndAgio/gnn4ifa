@@ -1,3 +1,4 @@
+import time
 import numpy as np
 from sklearn import svm, tree, neural_network, ensemble, naive_bayes
 
@@ -90,8 +91,12 @@ class Classifier:
     def test(self, dataset, metrics, verbose=True):
         features, labels = self.extract_features_and_labels(dataset)
         if self.data_mode in ['avg', 'cat']:
+            st_time = time.time()
             predictions = self.model.predict(features)
+            end_time = time.time()
             print('predictions: {}'.format(predictions))
+            print('Average prediction time = {} over {} samples'.format((end_time-st_time)/float(len(predictions)),
+                                                                        len(predictions)))
             # Compute metrics over predictions
             scores = {}
             for metric_name, metric_object in metrics.items():

@@ -41,7 +41,7 @@ class Datasetter:
         self.time_att_start = time_att_start
 
         self.mode = mode
-        if selected_features == 'all':
+        if selected_features == 'all' or selected_features == ['all']:
             self.selected_features = ['pit_size',
                                       'drop_rate',
                                       'in_interests',

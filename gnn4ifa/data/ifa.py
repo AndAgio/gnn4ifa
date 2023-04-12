@@ -25,6 +25,10 @@ class IfaDataset(InMemoryDataset):
                  train_sim_ids=[1, 2, 3],
                  val_sim_ids=[4],
                  test_sim_ids=[5],
+                 train_freq=0.7,
+                 val_freq=0.15,
+                 test_freq=0.15,
+                 split_mode='file_ids',
                  simulation_time=300,
                  time_att_start=50,
                  differential=False,
@@ -40,6 +44,10 @@ class IfaDataset(InMemoryDataset):
               f'train_sim_ids={train_sim_ids}\n'
               f'val_sim_ids={val_sim_ids}\n'
               f'test_sim_ids={test_sim_ids}\n'
+              f'train_freq={train_freq}\n'
+              f'val_freq={val_freq}\n'
+              f'test_freq={test_freq}\n'
+              f'split_mode={split_mode}\n'
               f'simulation_time={simulation_time}\n'
               f'time_att_start={time_att_start}\n'
               f'differential={differential}\n'
@@ -58,9 +66,17 @@ class IfaDataset(InMemoryDataset):
         # for test_sim_id in test_sim_ids:
         #     assert 1 <= test_sim_id <= 5
         # assert set(train_sim_ids + val_sim_ids + test_sim_ids) == {1, 2, 3, 4, 5}
+        self.split_mode = split_mode
+        if self.split_mode == 'percentage' and not train_freq + val_freq + test_freq == 1:
+            print('Split percentages do not sum to 1! Fixing val and test split w.r.t. train split!')
+            val_freq = (1 - train_freq) / 2.
+            test_freq = (1 - train_freq) / 2.
         self.train_sim_ids = train_sim_ids
         self.val_sim_ids = val_sim_ids
         self.test_sim_ids = test_sim_ids
+        self.train_freq = train_freq
+        self.val_freq = val_freq
+        self.test_freq = test_freq
         self.simulation_time = simulation_time
         self.time_att_start = time_att_start
         self.differential = differential
@@ -75,6 +91,7 @@ class IfaDataset(InMemoryDataset):
         else:
             raise ValueError(f"Split '{split}' found, but expected either "
                              f"'train', 'val', or 'test'")
+        print('Loading data from {}...'.format(path))
         self.data, self.slices = torch.load(path)
 
     @property
@@ -123,21 +140,41 @@ class IfaDataset(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return ['train_{}_diff_{}_data.pt'.format(self.train_sim_ids,
-                                                  self.differential),
-                'val_{}_diff_{}_data.pt'.format(self.val_sim_ids,
-                                                self.differential),
-                'test_{}_diff_{}_data.pt'.format(self.test_sim_ids,
-                                                 self.differential)]
+        if self.split_mode == 'file_ids' or self.differential:
+            return ['train_{}_diff_{}_data.pt'.format(self.train_sim_ids,
+                                                      self.differential),
+                    'val_{}_diff_{}_data.pt'.format(self.val_sim_ids,
+                                                    self.differential),
+                    'test_{}_diff_{}_data.pt'.format(self.test_sim_ids,
+                                                     self.differential)]
+        elif self.split_mode == 'percentage':
+            return ['train_{}_diff_{}_data.pt'.format(self.train_freq,
+                                                      self.differential),
+                    'val_{}_diff_{}_data.pt'.format(self.val_freq,
+                                                    self.differential),
+                    'test_{}_diff_{}_data.pt'.format(self.test_freq,
+                                                     self.differential)]
+        else:
+            raise ValueError('Split mode \"{}\" not supported!'.format(self.split_mode))
 
     @property
     def processed_file_names(self):
-        return ['train_{}_diff_{}_data.pt'.format(self.train_sim_ids,
-                                                  self.differential),
-                'val_{}_diff_{}_data.pt'.format(self.val_sim_ids,
-                                                self.differential),
-                'test_{}_diff_{}_data.pt'.format(self.test_sim_ids,
-                                                 self.differential)]
+        if self.split_mode == 'file_ids' or self.differential:
+            return ['train_{}_diff_{}_data.pt'.format(self.train_sim_ids,
+                                                      self.differential),
+                    'val_{}_diff_{}_data.pt'.format(self.val_sim_ids,
+                                                    self.differential),
+                    'test_{}_diff_{}_data.pt'.format(self.test_sim_ids,
+                                                     self.differential)]
+        elif self.split_mode == 'percentage':
+            return ['train_{}_diff_{}_data.pt'.format(self.train_freq,
+                                                      self.differential),
+                    'val_{}_diff_{}_data.pt'.format(self.val_freq,
+                                                    self.differential),
+                    'test_{}_diff_{}_data.pt'.format(self.test_freq,
+                                                     self.differential)]
+        else:
+            raise ValueError('Split mode \"{}\" not supported!'.format(self.split_mode))
 
     def download(self, force=False):
         # Download dataset only if the download folder is not found
@@ -193,14 +230,15 @@ class IfaDataset(InMemoryDataset):
                   scenario=self.scenario,
                   topology=self.topology,
                   n_attackers=self.n_attackers,
-                  train_sim_ids=self.train_sim_ids,
-                  val_sim_ids=self.val_sim_ids,
-                  test_sim_ids=self.test_sim_ids,
+                  train_sim_ids=self.train_sim_ids if self.split_mode == 'file_ids' or self.differential else self.train_freq,
+                  val_sim_ids=self.val_sim_ids if self.split_mode == 'file_ids' or self.differential else self.val_freq,
+                  test_sim_ids=self.test_sim_ids if self.split_mode == 'file_ids' or self.differential else self.test_freq,
                   simulation_time=self.simulation_time,
                   time_att_start=self.time_att_start,
                   differential=self.differential).run(downloaded_data_file=file_names,
                                                       raw_dir=self.raw_dir,
-                                                      raw_file_names=self.raw_file_names)
+                                                      raw_file_names=self.raw_file_names,
+                                                      split_mode=self.split_mode)
 
     # def process(self):
     #     print('Start processing')
@@ -254,7 +292,7 @@ class IfaDataset(InMemoryDataset):
                     data_list = [self.pre_transform(data) for data in data_list]
                 # Store
                 self.store_processed_data(data_list, self.processed_paths[index])
-            except FileNotFoundError:
+            except (FileNotFoundError, RuntimeError):
                 print('PyTorch geometric raw files not found!')
                 # Check if the dataset is already downloaded or not
                 # Gather real names of files
@@ -328,9 +366,12 @@ class IfaDataset(InMemoryDataset):
         # Gather all graphs over all scenarios and get only those graphs that have attack_is_on==False
         datas = self.get_all_data(frequencies=frequencies)
         # print('Number of non-filtered graphs: {}'.format(len(datas)))
+        # counter = 0
         # for data in datas:
-        #     print('data: {}'.format(data))
-        #     break
+        #     print('data[train_scenario]: {}'.format(data['train_scenario']))
+        #     counter += 1
+        #     if counter >= 10:
+        #         break
         data = [data for data in datas if data['train_scenario'] == 0]
         # print('Number of filtered graphs: {}'.format(len(data)))
         return data
@@ -370,6 +411,7 @@ class IfaDataset(InMemoryDataset):
             data = self.get_freq_data(frequencies=frequencies)
         else:
             data = [data for data in self]
+        # print('\n\n\nlen(data): {}\n\n\n'.format(len(data)))
         # Define empty dictionary
         data_dictionary = {0: []}
         sim_index = 0
@@ -385,5 +427,19 @@ class IfaDataset(InMemoryDataset):
             else:
                 last_time += 1
             data_dictionary[sim_index].append(sample)
+        # refine dictionary to drop empty samples
+        counter = 0
+        while counter < len(list(data_dictionary.keys())):
+            index = list(data_dictionary.keys())[counter]
+            if data_dictionary[index] == []:
+                del data_dictionary[index]
+            else:
+                counter += 1
         # print('data_dictionary: {}'.format(data_dictionary))
         return data_dictionary
+
+    def count_benign_data(self):
+        return len([1 for data in self if data['attack_is_on'] == 0])
+
+    def count_malicious_data(self):
+        return len([1 for data in self if data['attack_is_on'] == 1])

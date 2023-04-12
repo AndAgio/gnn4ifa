@@ -1,5 +1,8 @@
 import os
 import time
+import random
+import psutil
+from memory_profiler import profile
 import numpy as np
 import pandas as pd
 import torch
@@ -10,7 +13,7 @@ from gnn4ifa.transforms import NormalizeFeatures, RandomNodeMasking
 from gnn4ifa.models import Classifier, AutoEncoder
 from gnn4ifa.metrics import Accuracy, F1Score, MSE, MAE
 from gnn4ifa.utils import get_data_loader, get_labels_scenario_dict, get_labels_attacker_type_dict, \
-    get_labels_topology_dict
+    get_labels_topology_dict, timeit
 
 
 class Trainer():
@@ -25,6 +28,10 @@ class Trainer():
                  train_sim_ids=[1, 2, 3],
                  val_sim_ids=[4],
                  test_sim_ids=[5],
+                 train_freq=0.7,
+                 val_freq=0.15,
+                 test_freq=0.15,
+                 split_mode='file_ids',
                  simulation_time=300,
                  time_att_start=50,
                  differential=False,
@@ -49,6 +56,10 @@ class Trainer():
         self.train_sim_ids = train_sim_ids
         self.val_sim_ids = val_sim_ids
         self.test_sim_ids = test_sim_ids
+        self.train_freq = train_freq
+        self.val_freq = val_freq
+        self.test_freq = test_freq
+        self.split_mode = split_mode
         self.simulation_time = simulation_time
         self.time_att_start = time_att_start
         if differential and chosen_model.split('_')[0] == 'class':
@@ -83,10 +94,11 @@ class Trainer():
         self.trained_models_folder = os.path.join(self.out_path, 'trained_models')
         # Check if GPU is available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # Get dataset and setup the trainer
+        # Get dataset and set up the trainer
         self.get_dataset()
         self.setup()
 
+    @profile
     def get_dataset(self):
         # Get dataset
         if self.mode == 'class':
@@ -114,21 +126,29 @@ class Trainer():
                                         train_sim_ids=self.train_sim_ids,
                                         val_sim_ids=self.val_sim_ids,
                                         test_sim_ids=self.test_sim_ids,
+                                        train_freq=self.train_freq,
+                                        val_freq=self.val_freq,
+                                        test_freq=self.test_freq,
+                                        split_mode=self.split_mode,
                                         simulation_time=self.simulation_time,
                                         time_att_start=self.time_att_start,
                                         differential=self.differential,
                                         split='train')
         # print('self.train_dataset[0]: {}'.format(self.train_dataset[0]))
         print('Number of training examples: {}'.format(len(self.train_dataset)))
+        print('Number of benign examples: {}'.format(self.train_dataset.count_benign_data()))
+        print('Number of attack examples: {}'.format(self.train_dataset.count_malicious_data()))
         if self.differential:
             # print('self.train_dataset[0]: {}'.format(self.train_dataset[0]))
-            print('Normal samples: {}'.format(self.train_dataset.get_only_normal_data(frequencies=self.frequencies)))
+            normal_samples = self.train_dataset.get_only_normal_data(frequencies=self.frequencies)
+            if self.split_mode == 'percentage':
+                n_normal_samples = int(len(normal_samples) * self.train_freq)
+                normal_samples = random.sample(normal_samples, n_normal_samples)
+            print('Number of normal samples: {}'.format(len(normal_samples)))
+
             self.train_loader = get_data_loader(
-                # self.train_dataset.get_all_legitimate_data(frequencies=self.frequencies),
-                self.train_dataset.get_only_normal_data(frequencies=self.frequencies),
-                # self.train_dataset.get_randomly_sampled_legitimate_data(frequencies=self.frequencies),
-                # self.train_dataset.get_sampled_legitimate_data(n_attackers=self.train_dataset[0].x.shape[0]-1,
-                #                                                frequencies=self.frequencies),
+                normal_samples,
+                # self.train_dataset.get_only_normal_data(frequencies=self.frequencies),
                 batch_size=self.batch_size,
                 shuffle=True)
         else:
@@ -147,11 +167,17 @@ class Trainer():
                                       train_sim_ids=self.train_sim_ids,
                                       val_sim_ids=self.val_sim_ids,
                                       test_sim_ids=self.test_sim_ids,
+                                      train_freq=self.train_freq,
+                                      val_freq=self.val_freq,
+                                      test_freq=self.test_freq,
+                                      split_mode=self.split_mode,
                                       simulation_time=self.simulation_time,
                                       time_att_start=self.time_att_start,
                                       differential=self.differential,
                                       split='val')
         print('Number of validation examples: {}'.format(len(self.val_dataset)))
+        # print('Number of benign examples: {}'.format(self.val_dataset.count_benign_data()))
+        # print('Number of attack examples: {}'.format(self.val_dataset.count_malicious_data()))
         if self.differential:
             self.val_loader = get_data_loader(
                 self.val_dataset.get_all_legitimate_data(frequencies=self.frequencies),
@@ -173,11 +199,17 @@ class Trainer():
                                        train_sim_ids=self.train_sim_ids if self.mode == 'class' else [0],
                                        val_sim_ids=self.val_sim_ids if self.mode == 'class' else [0],
                                        test_sim_ids=self.test_sim_ids if self.mode == 'class' else [1, 2, 3, 4, 5],
+                                       train_freq=self.train_freq,
+                                       val_freq=self.val_freq,
+                                       test_freq=self.test_freq,
+                                       split_mode=self.split_mode,
                                        simulation_time=self.simulation_time,
                                        time_att_start=self.time_att_start,
                                        differential=self.differential,
                                        split='test')
         print('Number of test examples: {}'.format(len(self.test_dataset)))
+        # print('Number of benign examples: {}'.format(self.test_dataset.count_benign_data()))
+        # print('Number of attack examples: {}'.format(self.test_dataset.count_malicious_data()))
         if self.mode == 'class':
             self.test_loader = get_data_loader(self.test_dataset,
                                                batch_size=1,
@@ -194,6 +226,7 @@ class Trainer():
         self.num_node_features = self.train_dataset.num_features
         print('self.num_node_features:', self.num_node_features)
 
+    @profile
     def setup(self):
         # Get the model depending on the string passed by user
         if self.mode == 'class':
@@ -259,16 +292,37 @@ class Trainer():
         if not os.path.exists(self.trained_models_folder):
             os.makedirs(self.trained_models_folder)
         if self.mode == 'class':
-            model_name = '{} sce_{} topo_{} diff_{} best.pt'.format(self.chosen_model,
-                                                                    self.train_scenario,
-                                                                    self.train_topology,
-                                                                    self.differential)
+            if self.split_mode == 'percentage':
+                model_name = '{} sce_{} topo_{} diff_{} perc_{} best.pt'.format(self.chosen_model,
+                                                                                self.train_scenario,
+                                                                                self.train_topology,
+                                                                                self.differential,
+                                                                                self.train_freq)
+            elif self.split_mode == 'file_ids':
+                model_name = '{} sce_{} topo_{} diff_{} ids_{} best.pt'.format(self.chosen_model,
+                                                                               self.train_scenario,
+                                                                               self.train_topology,
+                                                                               self.differential,
+                                                                               self.train_sim_ids)
+            else:
+                raise ValueError('Split mode \"{}\" not supported!'.format(self.split_mode))
         elif self.mode == 'anomaly':
-            model_name = '{} mask_{} sce_{} topo_{} diff_{} best.pt'.format(self.chosen_model,
-                                                                            self.masking,
-                                                                            self.train_scenario,
-                                                                            self.train_topology,
-                                                                            self.differential)
+            if self.split_mode == 'percentage':
+                model_name = '{} mask_{} sce_{} topo_{} diff_{} perc_{} best.pt'.format(self.chosen_model,
+                                                                                        self.masking,
+                                                                                        self.train_scenario,
+                                                                                        self.train_topology,
+                                                                                        self.differential,
+                                                                                        self.train_freq)
+            elif self.split_mode == 'file_ids':
+                model_name = '{} mask_{} sce_{} topo_{} diff_{} ids_{} best.pt'.format(self.chosen_model,
+                                                                                       self.masking,
+                                                                                       self.train_scenario,
+                                                                                       self.train_topology,
+                                                                                       self.differential,
+                                                                                       self.train_sim_ids)
+            else:
+                raise ValueError('Split mode \"{}\" not supported!'.format(self.split_mode))
         else:
             raise ValueError('Something went wrong with mode selection')
         model_path = os.path.join(self.trained_models_folder, model_name)
@@ -276,16 +330,37 @@ class Trainer():
 
     def load_best_model(self):
         if self.mode == 'class':
-            model_name = '{} sce_{} topo_{} diff_{} best.pt'.format(self.chosen_model,
-                                                                    self.train_scenario,
-                                                                    self.train_topology,
-                                                                    self.differential)
+            if self.split_mode == 'percentage':
+                model_name = '{} sce_{} topo_{} diff_{} perc_{} best.pt'.format(self.chosen_model,
+                                                                                self.train_scenario,
+                                                                                self.train_topology,
+                                                                                self.differential,
+                                                                                self.train_freq)
+            elif self.split_mode == 'file_ids':
+                model_name = '{} sce_{} topo_{} diff_{} ids_{} best.pt'.format(self.chosen_model,
+                                                                               self.train_scenario,
+                                                                               self.train_topology,
+                                                                               self.differential,
+                                                                               self.train_sim_ids)
+            else:
+                raise ValueError('Split mode \"{}\" not supported!'.format(self.split_mode))
         elif self.mode == 'anomaly':
-            model_name = '{} mask_{} sce_{} topo_{} diff_{} best.pt'.format(self.chosen_model,
-                                                                            self.masking,
-                                                                            self.train_scenario,
-                                                                            self.train_topology,
-                                                                            self.differential)
+            if self.split_mode == 'percentage':
+                model_name = '{} mask_{} sce_{} topo_{} diff_{} perc_{} best.pt'.format(self.chosen_model,
+                                                                                        self.masking,
+                                                                                        self.train_scenario,
+                                                                                        self.train_topology,
+                                                                                        self.differential,
+                                                                                        self.train_freq)
+            elif self.split_mode == 'file_ids':
+                model_name = '{} mask_{} sce_{} topo_{} diff_{} ids_{} best.pt'.format(self.chosen_model,
+                                                                                       self.masking,
+                                                                                       self.train_scenario,
+                                                                                       self.train_topology,
+                                                                                       self.differential,
+                                                                                       self.train_sim_ids)
+            else:
+                raise ValueError('Split mode \"{}\" not supported!'.format(self.split_mode))
         else:
             raise ValueError('Something went wrong with mode selection')
         model_path = os.path.join(self.trained_models_folder, model_name)
@@ -293,9 +368,11 @@ class Trainer():
         # Move model to GPU or CPU
         self.model = self.model.to(self.device)
 
+    @profile
     def run(self, print_examples=False):
         print('Start training...')
         # Define best metric to store best model
+        start = time.time()
         best_met = 0.0
         # Iterate over the number of epochs defined in the init
         for epoch in range(self.epochs):
@@ -313,9 +390,15 @@ class Trainer():
                 self.lr_scheduler.step(train_loss)
             else:
                 self.lr_scheduler.step(val_metrics[self.lr_metric_to_check])
-        print('Finished Training. Testing...')
+        print('Finished Training.')
+        stop = time.time()
+        print('The average CPU usage during training is {} % over {} s'.format(psutil.cpu_percent(stop - start),
+                                                                               stop - start))
+        # process = psutil.Process(os.getpid())
+        # print('The average RAM usage during training is {} %'.format(process.memory_percent()))
         self.load_best_model()
-        self.test()
+        # print('Testing...')
+        # self.test()
 
     def train_epoch(self, epoch):
         # Set the valuer to be trainable

@@ -1,23 +1,22 @@
 # List of logs and who should be notified of issues
 topos=("small" "dfn")
-convs=("gcn" "cheb" "gin" "tag" "sg")
-percentiles=(0.90 0.905 0.91 0.915 0.92 0.925 0.93 0.935 0.94 0.945 0.95 0.955 0.96 0.965 0.97 0.975 0.98 0.985 0.99 0.995 1)
+conv="gin"
+pools="mean"
+mus=2
+
 
 sumduration=0
 counter=0
 # Look for signs of trouble in each log
 for i in ${!topos[@]};
 do
-  for j in ${!convs[@]};
+  for d in {0.9,0.85,0.8,0.75,0.7,0.65,0.6,0.55,0.5,0.45,0.4,0.35,0.3,0.25,0.2,0.15,0.1,0.5};
   do
-    for k in ${!percentiles[@]};
-    do
-      start=$SECONDS
-      python train.py --differential=1 --model="anomaly_${convs[$j]}_2x2x100" --percentile=${percentiles[$k]} --train_scenario="existing" --train_topology="${topos[$i]}" --epochs=10 --masking=1
-      duration=$(( SECONDS - start ))
-      sumduration=$((sumduration+duration))
-      counter=$((counter+1))
-    done
+    start=$SECONDS
+    python train.py --model="class_gin_2x100_mean" --train_scenario="existing" --train_topology="${topos[$i]}" --epochs=10 --differential=0 --masking=0 --train_freq=$d --split_mode="percentage"
+    duration=$(( SECONDS - start ))
+    sumduration=$((sumduration+duration))
+    counter=$((counter+1))
   done
 done
 avgduration=$(echo "$sumduration/$counter" | bc -l)
